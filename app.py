@@ -458,6 +458,30 @@ def before_request():
             flash('Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.')
             return redirect('/login')
 
+@app.route('/rank')
+@login_required
+def rank_page():
+    return render_template('rank.html')
+
+@app.route('/api/rankings')
+@login_required
+def api_rankings():
+    users_points = Db.get_all_users_points()
+    
+    rankings = []
+    for user in users_points:
+        rankings.append({
+            'username': user[0],
+            'current_point': user[1],
+            'total_point': user[2]
+        })
+    
+    rankings.sort(key=lambda x: x['total_point'], reverse=True)
+    
+    return jsonify({
+        'rankings': rankings
+    })
+
 if __name__ == '__main__':
     Db.create_accounts_table()
     socketio.run(app, debug=True)
