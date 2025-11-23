@@ -8,6 +8,7 @@ const socket = io();
 
 socket.on('new_solution', function(data) {
     loadSolutions();
+    loadUserPoints();
 });
 
 socket.on('update_solution', function(data) {
@@ -18,6 +19,19 @@ socket.on('delete_solution', function(data) {
     loadSolutions();
 });
 
+function loadUserPoints() {
+    fetch('/api/user_points')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('current-point').textContent = data.current_point;
+            document.getElementById('total-point').textContent = data.total_point;
+        })
+        .catch(error => {
+            console.error('Error loading user points:', error);
+        });
+}
+
+// Các hàm còn lại giữ nguyên
 function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.style.display = 'none';
@@ -235,6 +249,7 @@ function deleteSolution(solutionId) {
             if (data.success) {
                 socket.emit('delete_solution', {message: 'Solution deleted'});
                 loadSolutions();
+                loadUserPoints();
             } else {
                 alert('Xoá thất bại: ' + data.message);
             }
@@ -268,4 +283,5 @@ function showTab(tabName) {
 
 document.addEventListener('DOMContentLoaded', function() {
     loadSolutions();
+    loadUserPoints();
 });

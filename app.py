@@ -6,6 +6,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import math
 import time
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -23,8 +24,20 @@ user_requests = {}
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if not os.path.exists('database.db'):
+            session.clear()
+            flash('Hệ thống đang khởi tạo lại. Vui lòng đăng nhập lại.')
+            return redirect('/login')
+
         if not session.get('logged_in'):
             return redirect('/login')
+
+        username = session.get('user_id')
+        if not username or not Db.username_exists(username):
+            session.clear()
+            flash('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.')
+            return redirect('/login')
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -39,12 +52,21 @@ def redirect_if_logged_in(f):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if not os.path.exists('database.db'):
+            session.clear()
+            flash('Hệ thống đang khởi tạo lại. Vui lòng đăng nhập lại.')
+            return redirect('/login')
+            
         if not session.get('logged_in'):
             return redirect('/login')
         
         username = session.get('user_id')
+        if not username or not Db.username_exists(username):
+            session.clear()
+            flash('Phiên đăng nhập không hợp lệ.')
+            return redirect('/login')
+
         role = Db.get_user_role(username)
-        
         if role != 'admin':
             flash('Bạn không có quyền truy cập trang này!')
             return redirect('/home')
@@ -251,8 +273,9 @@ def create_solution_api():
         return redirect('/create_solution')
     
     if Db.add_solution(url, title, isac, ispublic, summary, code, user_id_db):
+        Db.add_points(session['user_id'], 10)
         socketio.emit('new_solution', {'message': 'New solution added'})
-        flash('Tạo solution thành công!')
+        flash('Tạo solution thành công! +10 điểm')
         return redirect('/home')
     else:
         flash('Tạo solution thất bại! Vui lòng thử lại.')
@@ -439,6 +462,29 @@ def api_all_solutions():
 def ratelimit_handler(e):
     flash('Quá nhiều request! Vui lòng thử lại sau.')
     return redirect(request.referrer or '/')
+
+@app.route('/api/user_points')
+@login_required
+@limiter.limit("30 per minute")
+def api_user_points():
+    username = session.get('user_id')
+    current_point, total_point = Db.get_user_points(username)
+    return jsonify({
+        'current_point': current_point,
+        'total_point': total_point
+    })
+
+@app.before_request
+def before_request():
+    if request.path.startswith(('/login', '/register', '/static')):
+        return
+
+    if session.get('logged_in'):
+        username = session.get('user_id')
+        if username and not Db.username_exists(username):
+            session.clear()
+            flash('Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.')
+            return redirect('/login')
 
 if __name__ == '__main__':
     Db.create_accounts_table()

@@ -28,6 +28,16 @@ class Db:
             ''')
             
             cursor.execute('''
+                CREATE TABLE IF NOT EXISTS points (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    point INTEGER NOT NULL DEFAULT 0,
+                    total_point INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES users (username)
+                )
+            ''')
+
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS solutions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     url TEXT NOT NULL,
@@ -452,5 +462,90 @@ class Db:
         except sqlite3.Error as e:
             print(e)
             return False
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_user(username, email, password):
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        try:
+            hashed_password = Db.hash_password(password)
+            cursor.execute('''
+                INSERT INTO users (username, email, password)
+                VALUES (?, ?, ?)
+            ''', (username, email, hashed_password))
+            
+            cursor.execute('''
+                INSERT INTO roles (username, role)
+                VALUES (?, ?)
+            ''', (username, 'default'))
+            
+            cursor.execute('''
+                INSERT INTO points (username, point, total_point)
+                VALUES (?, ?, ?)
+            ''', (username, 0, 0))
+            
+            conn.commit()
+            print(f"User {username} added successfully")
+            return True
+        except sqlite3.IntegrityError:
+            print("Username or email already exists")
+            return False
+        except sqlite3.Error as e:
+            print(e)
+            return False
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_points(username, points_to_add):
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT OR REPLACE INTO points (username, point, total_point)
+                VALUES (?, 
+                    COALESCE((SELECT point FROM points WHERE username = ?), 0) + ?,
+                    COALESCE((SELECT total_point FROM points WHERE username = ?), 0) + ?
+                )
+            ''', (username, username, points_to_add, username, points_to_add))
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(e)
+            return False
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_user_points(username):
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''SELECT point, total_point FROM points WHERE username = ?''', (username,))
+            result = cursor.fetchone()
+            return result if result else (0, 0)
+        except sqlite3.Error as e:
+            print(e)
+            return (0, 0)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_all_users_points():
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT u.username, p.point, p.total_point 
+                FROM users u 
+                LEFT JOIN points p ON u.username = p.username
+                ORDER BY p.point DESC
+            ''')
+            return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(e)
+            return []
         finally:
             conn.close()
