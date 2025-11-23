@@ -4,11 +4,7 @@ let codeEditor;
 document.addEventListener('DOMContentLoaded', function() {
     const easyMDEConfig = {
         autosave: {
-                enabled: true,
-                uniqueId: window.location.pathname.includes('/create_solution') 
-                        ? "temp-create-" + Date.now() 
-                        : "solution-editor", 
-                delay: 1000,
+                enabled: false
             },
                 toolbar: [
             "bold", "italic", "heading", "|",
