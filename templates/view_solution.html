@@ -3,7 +3,6 @@
 {{ solution.title }}
 {% endblock %}
 {% block css %}
-<link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
@@ -84,14 +83,14 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                         <i class="fas fa-file-alt text-blue-500 mr-3"></i>Tóm tắt
                     </h3>
-                    <div id="summary-content" class="prose max-w-none">{{ solution.summary }}</div>
+                    <div id="summary-content" class="markdown-content">{{ solution.summary }}</div>
                 </div>
 
                 <div class="bg-gray-50 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                         <i class="fas fa-code text-blue-500 mr-3"></i>Giải
                     </h3>
-                    <div id="code-content" class="prose max-w-none">{{ solution.code }}</div>
+                    <div id="code-content" class="markdown-content">{{ solution.code }}</div>
                 </div>
             </div>
 
@@ -107,29 +106,4 @@
 
 {% block js %}
 <script src="{{ url_for('static', filename='js/view_solution.js') }}"></script>
-<script>
-    function editSolution(solutionId) {
-        window.location.href = `/edit_solution/${solutionId}`;
-    }
-
-    function deleteSolution(solutionId) {
-        if (confirm('Bạn có chắc muốn xoá solution này?')) {
-            fetch(`/api/delete_solution/${solutionId}`, {
-                method: 'DELETE',
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Xoá solution thành công!');
-                    window.location.href = '/home';
-                } else {
-                    alert('Xoá thất bại: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Lỗi: ' + error);
-            });
-        }
-    }
-</script>
 {% endblock %}
