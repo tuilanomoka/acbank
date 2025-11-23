@@ -2,22 +2,12 @@ from flask import Flask, request, session, jsonify, render_template, redirect, u
 from functools import wraps
 from models.database import Db
 from flask_socketio import SocketIO, emit
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-import math
 import time
 import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 socketio = SocketIO(app)
-
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
-)
 
 user_requests = {}
 
@@ -114,18 +104,15 @@ def index():
 
 @app.route('/login')
 @redirect_if_logged_in 
-@limiter.limit("10 per minute")
 def login_page(): 
     return render_template('login.html')
 
 @app.route('/register')
 @redirect_if_logged_in
-@limiter.limit("5 per minute")
 def register_page():
     return render_template('register.html')
 
 @app.route('/api/login', methods=['POST'])
-@limiter.limit("10 per minute")
 def login_api():
     username = request.form.get('username')
     password = request.form.get('password')
@@ -143,7 +130,6 @@ def login_api():
         return redirect('/login')
 
 @app.route('/api/register', methods=['POST'])
-@limiter.limit("5 per minute")
 def register_api():
     username = request.form.get('username')
     email = request.form.get('email')
@@ -176,19 +162,17 @@ def logout():
 
 @app.route('/home')
 @login_required
-@limiter.limit("30 per minute")
+
 def home():
     return render_template('home.html')
 
 @app.route('/create_solution')
 @login_required
-@limiter.limit("20 per minute")
 def create_solution_page():
     return render_template('create_solution.html')
 
 @app.route('/edit_solution/<int:solution_id>')
 @login_required
-@limiter.limit("20 per minute")
 def edit_solution_page(solution_id):
     solution = Db.get_solution_by_id(solution_id)
     if not solution:
@@ -217,7 +201,7 @@ def edit_solution_page(solution_id):
 
 @app.route('/view_solution/<int:solution_id>')
 @login_required
-@limiter.limit("30 per minute")
+
 def view_solution_page(solution_id):
     solution = Db.get_solution_by_id(solution_id)
     if not solution:
@@ -240,7 +224,6 @@ def view_solution_page(solution_id):
 
 @app.route('/api/create_solution', methods=['POST'])
 @login_required
-@limiter.limit("10 per minute")
 def create_solution_api():
     if 'user_id' not in session:
         flash('Vui lòng đăng nhập!')
@@ -283,7 +266,6 @@ def create_solution_api():
 
 @app.route('/api/update_solution/<int:solution_id>', methods=['POST'])
 @login_required
-@limiter.limit("10 per minute")
 def update_solution_api(solution_id):
     if 'user_id' not in session:
         flash('Vui lòng đăng nhập!')
@@ -331,7 +313,6 @@ def update_solution_api(solution_id):
 
 @app.route('/api/delete_solution/<int:solution_id>', methods=['DELETE'])
 @login_required
-@limiter.limit("10 per minute")
 def delete_solution_api(solution_id):
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Vui lòng đăng nhập!'})
@@ -365,7 +346,6 @@ def delete_solution_api(solution_id):
 
 @app.route('/api/my_solutions')
 @login_required
-@limiter.limit("30 per minute")
 def api_my_solutions():
     page = int(request.args.get('page', 1))
     search = request.args.get('search', '')
@@ -397,7 +377,6 @@ def api_my_solutions():
 
 @app.route('/api/public_solutions')
 @login_required
-@limiter.limit("30 per minute")
 def api_public_solutions():
     page = int(request.args.get('page', 1))
     search = request.args.get('search', '')
@@ -429,7 +408,6 @@ def api_public_solutions():
 @app.route('/api/all_solutions')
 @login_required
 @admin_required
-@limiter.limit("30 per minute")
 def api_all_solutions():
     page = int(request.args.get('page', 1))
     search = request.args.get('search', '')
@@ -458,14 +436,8 @@ def api_all_solutions():
         'page': page
     })
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    flash('Quá nhiều request! Vui lòng thử lại sau.')
-    return redirect(request.referrer or '/')
-
 @app.route('/api/user_points')
 @login_required
-@limiter.limit("30 per minute")
 def api_user_points():
     username = session.get('user_id')
     current_point, total_point = Db.get_user_points(username)
