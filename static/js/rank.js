@@ -57,7 +57,6 @@ function displayRankings(rankings) {
                         ${medalHtml}
                         <div>
                             <h4 class="text-lg font-semibold text-gray-800">${user.username}</h4>
-                            <p class="text-sm text-gray-600">${user.email || 'Không có email'}</p>
                         </div>
                     </div>
                     <div class="text-right">
