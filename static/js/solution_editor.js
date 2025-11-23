@@ -2,22 +2,15 @@ let summaryEditor;
 let codeEditor;
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (window.location.pathname === '/create_solution') {
-        localStorage.removeItem('smde_solution-editor');  
-        localStorage.removeItem('smde_solution-editor-code');
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('smde_')) {
-                localStorage.removeItem(key);
-            }
-        });
-    }
     const easyMDEConfig = {
         autosave: {
-            enabled: true,
-            uniqueId: "solution-editor",
-            delay: 1000,
-        },
-        toolbar: [
+                enabled: true,
+                uniqueId: window.location.pathname.includes('/create_solution') 
+                        ? "temp-create-" + Date.now() 
+                        : "solution-editor", 
+                delay: 1000,
+            },
+                toolbar: [
             "bold", "italic", "heading", "|",
             "quote", "unordered-list", "ordered-list", "|",
             "link", "image", "|",
