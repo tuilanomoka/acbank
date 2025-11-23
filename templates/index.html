@@ -3,9 +3,28 @@
 Trang chủ
 {% endblock %}
 {% block content %}
-    <h1>Chào mừng đến với AC Bank</h1>
-    <div>
-        <a href="/login">Đăng nhập</a> | 
-        <a href="/register">Đăng ký</a>
+<div class="min-h-screen flex items-center justify-center gradient-bg">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Chào mừng đến với AC Bank</h1>
+            <p class="text-gray-600">Nơi lưu trữ và chia sẻ giải pháp lập trình</p>
+        </div>
+        
+        <div class="space-y-4">
+            <a href="/login" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center shadow-lg">
+                <i class="fas fa-sign-in-alt mr-2"></i>
+                Đăng nhập
+            </a>
+            
+            <a href="/register" class="w-full bg-white text-blue-600 border border-blue-600 py-3 px-4 rounded-lg font-semibold hover:bg-blue-50 transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center shadow-md">
+                <i class="fas fa-user-plus mr-2"></i>
+                Đăng ký
+            </a>
+        </div>
+        
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Kết nối - Chia sẻ - Phát triển</p>
+        </div>
     </div>
+</div>
 {% endblock %}

@@ -2,60 +2,105 @@
 {% block title %}
 Trang chủ
 {% endblock %}
+{% block css %}
+<link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet">
+{% endblock %}
 {% block content %}
-    <h1>Chào mừng {{ session.user_id }}! {% if is_admin() %}(Admin){% endif %}</h1>
-    
-    <div>
-        <a href="/create_solution">Tạo Solution Mới</a> | 
-        <a href="/logout">Đăng xuất</a>
-    </div>
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-2xl shadow-xl p-6 mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                <div class="mb-4 lg:mb-0">
+                    <h1 class="text-3xl font-bold text-gray-800">Xin chào {{ session.user_id }}!</h1>
+                    {% if is_admin() %}
+                    <span class="inline-block bg-red-100 text-red-800 text-sm font-semibold px-3 py-1 rounded-full mt-2">
+                        <i class="fas fa-crown mr-1"></i>Admin
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+                    <a href="/create_solution" class="btn-primary text-white py-2 px-6 rounded-lg font-semibold text-center">
+                        <i class="fas fa-plus mr-2"></i>Tạo Solution Mới
+                    </a>
+                    <a href="/logout" class="bg-gray-100 text-gray-700 py-2 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300 text-center">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Đăng xuất
+                    </a>
+                </div>
+            </div>
+        </div>
 
-    <div id="view-section">
-        <div>
-            <button onclick="showTab('my-solutions')">Của tôi</button>
-            <button onclick="showTab('public-solutions')">Của mọi người</button>
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button onclick="showTab('my-solutions')" id="tab-my" class="tab-active py-2 px-4 rounded-lg font-semibold transition-all duration-300">
+                    <i class="fas fa-user mr-2"></i>Của tôi
+                </button>
+                <button onclick="showTab('public-solutions')" id="tab-public" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                    <i class="fas fa-users mr-2"></i>Của mọi người
+                </button>
+                {% if is_admin() %}
+                <button onclick="showTab('all-solutions')" id="tab-all" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                    <i class="fas fa-shield-alt mr-2"></i>Tất cả (Admin)
+                </button>
+                {% endif %}
+            </div>
+
+            <div class="mb-6">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Tìm kiếm theo URL hoặc tiêu đề..." 
+                           class="w-full py-3 px-4 pr-12 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button onclick="search()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors duration-300">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="my-solutions" class="tab-content">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Solutions của tôi</h3>
+                <div id="my-solutions-list"></div>
+                <div class="flex justify-center items-center space-x-4 mt-6">
+                    <button onclick="prevPage('my')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        <i class="fas fa-chevron-left mr-2"></i>Trước
+                    </button>
+                    <span id="my-page-info" class="text-gray-700 font-medium">Trang 1</span>
+                    <button onclick="nextPage('my')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        Sau<i class="fas fa-chevron-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="public-solutions" class="tab-content" style="display:none">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Solutions công khai</h3>
+                <div id="public-solutions-list"></div>
+                <div class="flex justify-center items-center space-x-4 mt-6">
+                    <button onclick="prevPage('public')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        <i class="fas fa-chevron-left mr-2"></i>Trước
+                    </button>
+                    <span id="public-page-info" class="text-gray-700 font-medium">Trang 1</span>
+                    <button onclick="nextPage('public')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        Sau<i class="fas fa-chevron-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+
             {% if is_admin() %}
-            <button onclick="showTab('all-solutions')">Tất cả (Admin)</button>
+            <div id="all-solutions" class="tab-content" style="display:none">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Tất cả Solutions (Admin)</h3>
+                <div id="all-solutions-list"></div>
+                <div class="flex justify-center items-center space-x-4 mt-6">
+                    <button onclick="prevPage('all')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        <i class="fas fa-chevron-left mr-2"></i>Trước
+                    </button>
+                    <span id="all-page-info" class="text-gray-700 font-medium">Trang 1</span>
+                    <button onclick="nextPage('all')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                        Sau<i class="fas fa-chevron-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
             {% endif %}
         </div>
-
-        <div>
-            <input type="text" id="search-input" placeholder="Tìm kiếm theo URL hoặc tiêu đề...">
-            <button onclick="search()">Tìm kiếm</button>
-        </div>
-
-        <div id="my-solutions" class="tab-content">
-            <h3>Solutions của tôi</h3>
-            <div id="my-solutions-list"></div>
-            <div>
-                <button onclick="prevPage('my')">Trước</button>
-                <span id="my-page-info">Trang 1</span>
-                <button onclick="nextPage('my')">Sau</button>
-            </div>
-        </div>
-
-        <div id="public-solutions" class="tab-content" style="display:none">
-            <h3>Solutions công khai</h3>
-            <div id="public-solutions-list"></div>
-            <div>
-                <button onclick="prevPage('public')">Trước</button>
-                <span id="public-page-info">Trang 1</span>
-                <button onclick="nextPage('public')">Sau</button>
-            </div>
-        </div>
-
-        {% if is_admin() %}
-        <div id="all-solutions" class="tab-content" style="display:none">
-            <h3>Tất cả Solutions (Admin)</h3>
-            <div id="all-solutions-list"></div>
-            <div>
-                <button onclick="prevPage('all')">Trước</button>
-                <span id="all-page-info">Trang 1</span>
-                <button onclick="nextPage('all')">Sau</button>
-            </div>
-        </div>
-        {% endif %}
     </div>
+</div>
 {% endblock %}
 
 {% block js %}
