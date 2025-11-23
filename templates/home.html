@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}
+Trang chủ
+{% endblock %}
+{% block content %}
+    <h1>Chào mừng {{ session.user_id }}! {% if is_admin() %}(Admin){% endif %}</h1>
+    
+    <div>
+        <a href="/create_solution">Tạo Solution Mới</a> | 
+        <a href="/logout">Đăng xuất</a>
+    </div>
+
+    <div id="view-section">
+        <div>
+            <button onclick="showTab('my-solutions')">Của tôi</button>
+            <button onclick="showTab('public-solutions')">Của mọi người</button>
+            {% if is_admin() %}
+            <button onclick="showTab('all-solutions')">Tất cả (Admin)</button>
+            {% endif %}
+        </div>
+
+        <div>
+            <input type="text" id="search-input" placeholder="Tìm kiếm theo URL hoặc tiêu đề...">
+            <button onclick="search()">Tìm kiếm</button>
+        </div>
+
+        <div id="my-solutions" class="tab-content">
+            <h3>Solutions của tôi</h3>
+            <div id="my-solutions-list"></div>
+            <div>
+                <button onclick="prevPage('my')">Trước</button>
+                <span id="my-page-info">Trang 1</span>
+                <button onclick="nextPage('my')">Sau</button>
+            </div>
+        </div>
+
+        <div id="public-solutions" class="tab-content" style="display:none">
+            <h3>Solutions công khai</h3>
+            <div id="public-solutions-list"></div>
+            <div>
+                <button onclick="prevPage('public')">Trước</button>
+                <span id="public-page-info">Trang 1</span>
+                <button onclick="nextPage('public')">Sau</button>
+            </div>
+        </div>
+
+        {% if is_admin() %}
+        <div id="all-solutions" class="tab-content" style="display:none">
+            <h3>Tất cả Solutions (Admin)</h3>
+            <div id="all-solutions-list"></div>
+            <div>
+                <button onclick="prevPage('all')">Trước</button>
+                <span id="all-page-info">Trang 1</span>
+                <button onclick="nextPage('all')">Sau</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}
+Tạo Solution
+{% endblock %}
+{% block content %}
+    <h2>Tạo Solution Mới</h2>
+    <form method="POST" action="/api/create_solution" id="solution-form">
+        <div>
+            <label>Tiêu đề bài tập:</label>
+            <input type="text" name="title" placeholder="Tên bài tập..." required>
+        </div>
+        
+        <div>
+            <label>URL bài tập:</label>
+            <input type="text" name="url" placeholder="https://..." required>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="isac" value="1">
+                Đã giải được (AC)
+            </label>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="ispublic" value="1">
+                Công khai
+            </label>
+        </div>
+        
+        <div>
+            <label>Tóm tắt:</label>
+            <textarea name="summary" id="summary-editor"></textarea>
+        </div>
+        
+        <div>
+            <label>Giải:</label>
+            <textarea name="code" id="code-editor"></textarea>
+        </div>
+        
+        <button type="submit">Tạo Solution</button>
+    </form>
+    
+    <a href="/home">Quay lại trang chủ</a>
+    
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div style="color: red; margin-top: 10px;">
+                {% for message in messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/solution_editor.js') }}"></script>
+{% endblock %}

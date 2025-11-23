@@ -1,0 +1,6 @@
+Flask
+Flask-SocketIO
+python-socketio
+redis
+celery
+Flask-Limiter

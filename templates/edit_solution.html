@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}
+Chỉnh sửa Solution
+{% endblock %}
+{% block content %}
+    <h2>Chỉnh sửa Solution {% if is_admin() and session.user_id != solution.username %}(Admin Mode){% endif %}</h2>
+    
+    {% if is_admin() and session.user_id != solution.username %}
+    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0;">
+        <strong>Chế độ Admin:</strong> Bạn đang chỉnh sửa solution của user <strong>{{ solution.username }}</strong>
+    </div>
+    {% endif %}
+    
+    <form method="POST" action="/api/update_solution/{{ solution_id }}" id="solution-form">
+        <div>
+            <label>Tiêu đề bài tập:</label>
+            <input type="text" name="title" value="{{ solution.title }}" required>
+        </div>
+        
+        <div>
+            <label>URL bài tập:</label>
+            <input type="text" name="url" value="{{ solution.url }}" required>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="isac" value="1" {% if solution.isac %}checked{% endif %}>
+                Đã giải được (AC)
+            </label>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="ispublic" value="1" {% if solution.ispublic %}checked{% endif %}>
+                Công khai
+            </label>
+        </div>
+        
+        <div>
+            <label>Tóm tắt:</label>
+            <textarea name="summary" id="summary-editor">{{ solution.summary }}</textarea>
+        </div>
+        
+        <div>
+            <label>Giải:</label>
+            <textarea name="code" id="code-editor">{{ solution.code }}</textarea>
+        </div>
+        
+        <button type="submit">Cập nhật Solution</button>
+    </form>
+    
+    <a href="/home">Quay lại trang chủ</a>
+    
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div style="color: red; margin-top: 10px;">
+                {% for message in messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/solution_editor.js') }}"></script>
+{% endblock %}

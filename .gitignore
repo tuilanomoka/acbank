@@ -1,2 +1,51 @@
-.env.local
+# Environment variables
 .env
+*.env
+.env.local
+.env.*.local
+
+# Local development files
+*.local
+.local/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyd
+*.pyo
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Application specific
+cat.cmd
+cat-data/
+acbank/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

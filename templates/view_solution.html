@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}
+{{ solution.title }}
+{% endblock %}
+{% block content %}
+    <h2>{{ solution.title }}</h2>
+    
+    <div>
+        <p><strong>Người đăng:</strong> {{ solution.username }}</p>
+        <p><strong>URL:</strong> <a href="{{ solution.url }}" target="_blank">{{ solution.url }}</a></p>
+        <p><strong>Trạng thái:</strong> {{ 'Đã AC' if solution.isac else 'Chưa AC' }}</p>
+        <p><strong>Công khai:</strong> {{ 'Có' if solution.ispublic else 'Không' }}</p>
+        <p><strong>Ngày tạo:</strong> {{ solution.created_at }}</p>
+    </div>
+
+    <div>
+        <h3>Tóm tắt</h3>
+        <div id="summary-content">{{ solution.summary }}</div>
+    </div>
+
+    <div>
+        <h3>Giải</h3>
+        <div id="code-content">{{ solution.code }}</div>
+    </div>
+
+    <div>
+        <a href="/home">Quay lại trang chủ</a>
+        {% if session.user_id == solution.username or is_admin() %}
+        <button onclick="editSolution({{ solution.id }})">Chỉnh sửa</button>
+        <button onclick="deleteSolution({{ solution.id }})">Xoá Solution</button>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/view_solution.js') }}"></script>
+<script>
+    function editSolution(solutionId) {
+        window.location.href = `/edit_solution/${solutionId}`;
+    }
+
+    function deleteSolution(solutionId) {
+        if (confirm('Bạn có chắc muốn xoá solution này?')) {
+            fetch(`/api/delete_solution/${solutionId}`, {
+                method: 'DELETE',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Xoá solution thành công!');
+                    window.location.href = '/home';
+                } else {
+                    alert('Xoá thất bại: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Lỗi: ' + error);
+            });
+        }
+    }
+</script>
+{% endblock %}
