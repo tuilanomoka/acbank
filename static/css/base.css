@@ -42,3 +42,47 @@ body {
     color: white;
     border: none;
 }
+
+.editor-container {
+    min-height: 200px;
+}
+
+.tab-btn {
+    transition: all 0.2s ease;
+}
+
+.tab-btn:not(.active):hover {
+    background-color: #f9fafb;
+}
+
+.edit-area, .preview-area {
+    transition: all 0.3s ease;
+}
+
+.preview-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.preview-content pre {
+    background: #ffffff;
+    color: #ffffff;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+}
+
+.preview-content code {
+    background: #f3f4f6;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+
+.preview-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.katex {
+    font-size: 1.1em;
+}
