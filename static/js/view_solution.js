@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function renderMarkdown(text) {
+    function renderMarkdownWithLatex(text) {
         if (!text || !text.trim()) return '<p><em>Không có</em></p>';
         return marked.parse(text);
     }
@@ -19,30 +19,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const summaryText = summaryElement.textContent || summaryElement.innerText;
     const codeText = codeElement.textContent || codeElement.innerText;
     
-    summaryElement.innerHTML = renderMarkdown(summaryText);
-    codeElement.innerHTML = renderMarkdown(codeText);
+    summaryElement.innerHTML = renderMarkdownWithLatex(summaryText);
+    codeElement.innerHTML = renderMarkdownWithLatex(codeText);
 
     document.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
     });
-});
 
-function deleteSolution(solutionId) {
-    if (confirm('Bạn có chắc muốn xoá solution này?')) {
-        fetch('/api/delete_solution/' + solutionId, {
-            method: 'DELETE',
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Xoá solution thành công!');
-                window.location.href = '/home';
-            } else {
-                alert('Xoá thất bại: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Lỗi: ' + error);
-        });
-    }
-}
+    renderMathInElement(document.body, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+        ],
+        throwOnError: false,
+        output: 'html'
+    });
+});

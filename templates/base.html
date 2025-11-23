@@ -16,13 +16,6 @@
     {% block js %}
     {% endblock %}
     <script>
-        MathJax = {
-            tex: {
-                inlineMath: [['\\(', '\\)'], ['$', '$']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true
-            }
-        };
         document.addEventListener('DOMContentLoaded', function() {
             const lightbox = GLightbox({
                 selector: 'img',
