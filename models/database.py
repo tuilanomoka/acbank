@@ -538,10 +538,10 @@ class Db:
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                SELECT u.username, p.point, p.total_point 
+                SELECT u.username, p.total_point 
                 FROM users u 
                 LEFT JOIN points p ON u.username = p.username
-                ORDER BY p.point DESC
+                ORDER BY p.total_point DESC
             ''')
             return cursor.fetchall()
         except sqlite3.Error as e:

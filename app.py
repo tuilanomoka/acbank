@@ -472,11 +472,8 @@ def api_rankings():
     for user in users_points:
         rankings.append({
             'username': user[0],
-            'current_point': user[1],
-            'total_point': user[2]
+            'total_point': user[1]
         })
-    
-    rankings.sort(key=lambda x: x['total_point'], reverse=True)
     
     return jsonify({
         'rankings': rankings

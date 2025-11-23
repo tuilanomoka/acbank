@@ -64,14 +64,6 @@ function displayRankings(rankings) {
                         <div class="text-sm text-gray-500">Tổng điểm</div>
                     </div>
                 </div>
-                ${user.current_point !== undefined ? `
-                <div class="mt-3 pt-3 border-t border-gray-200">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Điểm hiện tại:</span>
-                        <span class="font-semibold text-green-600">${user.current_point}</span>
-                    </div>
-                </div>
-                ` : ''}
             </div>
         `;
     }).join('');
