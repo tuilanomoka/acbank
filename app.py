@@ -1,7 +1,7 @@
 from flask import Flask, request, session, jsonify, render_template, redirect, url_for, flash
 from functools import wraps
 from models.database import Db
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 import time
 import os
 
@@ -14,10 +14,6 @@ user_requests = {}
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not os.path.exists('database.db'):
-            session.clear()
-            flash('Hệ thống đang khởi tạo lại. Vui lòng đăng nhập lại.')
-            return redirect('/login')
 
         if not session.get('logged_in'):
             return redirect('/login')
@@ -42,10 +38,6 @@ def redirect_if_logged_in(f):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not os.path.exists('database.db'):
-            session.clear()
-            flash('Hệ thống đang khởi tạo lại. Vui lòng đăng nhập lại.')
-            return redirect('/login')
             
         if not session.get('logged_in'):
             return redirect('/login')

@@ -1,0 +1,15 @@
+import os
+
+class Config:
+    SECRET_KEY = 'your-secret-key-here'
+    DB_HOST = '127.0.0.1'
+    DB_PORT = '5432'
+    DB_NAME = 'your_database_name'
+    DB_USER = 'your_username'
+    DB_PASSWORD = 'your_password'
+    
+    @property
+    def DATABASE_URL(self):
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+config = Config()

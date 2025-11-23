@@ -4,3 +4,4 @@ python-socketio
 redis
 celery
 Flask-Limiter
+psycopg2-binary

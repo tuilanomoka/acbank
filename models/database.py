@@ -1,16 +1,20 @@
-import sqlite3
+import psycopg2
 import hashlib
-import os
+from config import config
 
 class Db:
     @staticmethod
+    def get_connection():
+        return psycopg2.connect(config.DATABASE_URL)
+
+    @staticmethod
     def create_accounts_table():
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
@@ -20,7 +24,7 @@ class Db:
             
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS roles (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     role TEXT NOT NULL DEFAULT 'default',
                     FOREIGN KEY (username) REFERENCES users (username)
@@ -29,7 +33,7 @@ class Db:
             
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS points (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     point INTEGER NOT NULL DEFAULT 0,
                     total_point INTEGER NOT NULL DEFAULT 0,
@@ -39,11 +43,11 @@ class Db:
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS solutions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     url TEXT NOT NULL,
                     title TEXT,
-                    isac BOOLEAN NOT NULL DEFAULT 0,
-                    ispublic BOOLEAN NOT NULL DEFAULT 0,
+                    isac BOOLEAN NOT NULL DEFAULT FALSE,
+                    ispublic BOOLEAN NOT NULL DEFAULT FALSE,
                     summary TEXT,
                     code TEXT,
                     user_id INTEGER NOT NULL,
@@ -53,7 +57,7 @@ class Db:
             ''')
             conn.commit()
             print("Tables created successfully")
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
         finally:
             conn.close()
@@ -64,27 +68,32 @@ class Db:
     
     @staticmethod
     def add_user(username, email, password):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             hashed_password = Db.hash_password(password)
             cursor.execute('''
                 INSERT INTO users (username, email, password)
-                VALUES (?, ?, ?)
+                VALUES (%s, %s, %s)
             ''', (username, email, hashed_password))
             
             cursor.execute('''
                 INSERT INTO roles (username, role)
-                VALUES (?, ?)
+                VALUES (%s, %s)
             ''', (username, 'default'))
+            
+            cursor.execute('''
+                INSERT INTO points (username, point, total_point)
+                VALUES (%s, %s, %s)
+            ''', (username, 0, 0))
             
             conn.commit()
             print(f"User {username} added successfully")
             return True
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
             print("Username or email already exists")
             return False
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -92,13 +101,13 @@ class Db:
 
     @staticmethod
     def get_user_role(username):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT role FROM roles WHERE username = ?''', (username,))
+            cursor.execute('''SELECT role FROM roles WHERE username = %s''', (username,))
             result = cursor.fetchone()
             return result[0] if result else 'default'
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return 'default'
         finally:
@@ -106,16 +115,17 @@ class Db:
 
     @staticmethod
     def set_user_role(username, role):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT OR REPLACE INTO roles (username, role)
-                VALUES (?, ?)
-            ''', (username, role))
+                INSERT INTO roles (username, role)
+                VALUES (%s, %s)
+                ON CONFLICT (username) DO UPDATE SET role = %s
+            ''', (username, role, role))
             conn.commit()
             return True
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -123,7 +133,7 @@ class Db:
 
     @staticmethod
     def get_all_users():
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
@@ -132,7 +142,7 @@ class Db:
                 LEFT JOIN roles r ON u.username = r.username
             ''')
             return cursor.fetchall()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return []
         finally:
@@ -140,7 +150,7 @@ class Db:
 
     @staticmethod
     def get_all_solutions(offset=0, limit=10, search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             query = '''
@@ -151,15 +161,15 @@ class Db:
             params = []
             
             if search:
-                query += ' WHERE (s.url LIKE ? OR s.title LIKE ?)'
+                query += ' WHERE (s.url LIKE %s OR s.title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
-            query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?'
+            query += ' ORDER BY s.created_at DESC LIMIT %s OFFSET %s'
             params.extend([limit, offset])
             
             cursor.execute(query, params)
             return cursor.fetchall()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return []
         finally:
@@ -167,19 +177,19 @@ class Db:
 
     @staticmethod
     def count_all_solutions(search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             query = 'SELECT COUNT(*) FROM solutions'
             params = []
             
             if search:
-                query += ' WHERE (url LIKE ? OR title LIKE ?)'
+                query += ' WHERE (url LIKE %s OR title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
             cursor.execute(query, params)
             return cursor.fetchone()[0]
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return 0
         finally:
@@ -187,17 +197,17 @@ class Db:
 
     @staticmethod
     def admin_update_solution(solution_id, url, title, isac, ispublic, summary, code):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 UPDATE solutions 
-                SET url = ?, title = ?, isac = ?, ispublic = ?, summary = ?, code = ?
-                WHERE id = ?
+                SET url = %s, title = %s, isac = %s, ispublic = %s, summary = %s, code = %s
+                WHERE id = %s
             ''', (url, title, isac, ispublic, summary, code, solution_id))
             conn.commit()
             return cursor.rowcount > 0
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -205,13 +215,13 @@ class Db:
 
     @staticmethod
     def admin_delete_solution(solution_id):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('DELETE FROM solutions WHERE id = ?', (solution_id,))
+            cursor.execute('DELETE FROM solutions WHERE id = %s', (solution_id,))
             conn.commit()
             return cursor.rowcount > 0
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -219,10 +229,10 @@ class Db:
 
     @staticmethod
     def verify_user(username, plain_password):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT password FROM users WHERE username = ?''', (username,))
+            cursor.execute('''SELECT password FROM users WHERE username = %s''', (username,))
             result = cursor.fetchone()
             if result:
                 stored_hash = result[0]
@@ -236,23 +246,23 @@ class Db:
             else:
                 print(f"User {username} not found")
                 return False
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
         finally:
             conn.close()
             
     @staticmethod
     def get_user_by_username(username):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 SELECT id, username, email, created_at 
-                FROM users WHERE username = ?
+                FROM users WHERE username = %s
             ''', (username,))
             user = cursor.fetchone()
             return user
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return None
         finally:
@@ -260,12 +270,12 @@ class Db:
 
     @staticmethod
     def username_exists(username):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT id FROM users WHERE username = ?''', (username,))
+            cursor.execute('''SELECT id FROM users WHERE username = %s''', (username,))
             return cursor.fetchone() is not None
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -273,12 +283,12 @@ class Db:
 
     @staticmethod
     def email_exists(email):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT id FROM users WHERE email = ?''', (email,))
+            cursor.execute('''SELECT id FROM users WHERE email = %s''', (email,))
             return cursor.fetchone() is not None
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -286,17 +296,17 @@ class Db:
 
     @staticmethod
     def add_solution(url, title, isac, ispublic, summary, code, user_id):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 INSERT INTO solutions (url, title, isac, ispublic, summary, code, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''', (url, title, isac, ispublic, summary, code, user_id))
             conn.commit()
             print(f"Solution added successfully by user {user_id}")
             return True
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -304,13 +314,13 @@ class Db:
 
     @staticmethod
     def get_user_id_by_username(username):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT id FROM users WHERE username = ?''', (username,))
+            cursor.execute('''SELECT id FROM users WHERE username = %s''', (username,))
             result = cursor.fetchone()
             return result[0] if result else None
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return None
         finally:
@@ -318,27 +328,27 @@ class Db:
 
     @staticmethod
     def get_my_solutions(user_id, offset=0, limit=10, search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             query = '''
                 SELECT s.*, u.username 
                 FROM solutions s 
                 JOIN users u ON s.user_id = u.id 
-                WHERE s.user_id = ?
+                WHERE s.user_id = %s
             '''
             params = [user_id]
             
             if search:
-                query += ' AND (s.url LIKE ? OR s.title LIKE ?)'
+                query += ' AND (s.url LIKE %s OR s.title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
-            query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?'
+            query += ' ORDER BY s.created_at DESC LIMIT %s OFFSET %s'
             params.extend([limit, offset])
             
             cursor.execute(query, params)
             return cursor.fetchall()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return []
         finally:
@@ -346,27 +356,27 @@ class Db:
 
     @staticmethod
     def get_public_solutions(offset=0, limit=10, search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             query = '''
                 SELECT s.*, u.username 
                 FROM solutions s 
                 JOIN users u ON s.user_id = u.id 
-                WHERE s.ispublic = 1
+                WHERE s.ispublic = TRUE
             '''
             params = []
             
             if search:
-                query += ' AND (s.url LIKE ? OR s.title LIKE ?)'
+                query += ' AND (s.url LIKE %s OR s.title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
-            query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?'
+            query += ' ORDER BY s.created_at DESC LIMIT %s OFFSET %s'
             params.extend([limit, offset])
             
             cursor.execute(query, params)
             return cursor.fetchall()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return []
         finally:
@@ -374,19 +384,19 @@ class Db:
 
     @staticmethod
     def count_my_solutions(user_id, search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            query = 'SELECT COUNT(*) FROM solutions WHERE user_id = ?'
+            query = 'SELECT COUNT(*) FROM solutions WHERE user_id = %s'
             params = [user_id]
             
             if search:
-                query += ' AND (url LIKE ? OR title LIKE ?)'
+                query += ' AND (url LIKE %s OR title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
             cursor.execute(query, params)
             return cursor.fetchone()[0]
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return 0
         finally:
@@ -394,19 +404,19 @@ class Db:
 
     @staticmethod
     def count_public_solutions(search=None):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            query = 'SELECT COUNT(*) FROM solutions WHERE ispublic = 1'
+            query = 'SELECT COUNT(*) FROM solutions WHERE ispublic = TRUE'
             params = []
             
             if search:
-                query += ' AND (url LIKE ? OR title LIKE ?)'
+                query += ' AND (url LIKE %s OR title LIKE %s)'
                 params.extend([f'%{search}%', f'%{search}%'])
             
             cursor.execute(query, params)
             return cursor.fetchone()[0]
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return 0
         finally:
@@ -414,17 +424,17 @@ class Db:
 
     @staticmethod
     def get_solution_by_id(solution_id):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 SELECT s.*, u.username 
                 FROM solutions s 
                 JOIN users u ON s.user_id = u.id 
-                WHERE s.id = ?
+                WHERE s.id = %s
             ''', (solution_id,))
             return cursor.fetchone()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return None
         finally:
@@ -432,17 +442,17 @@ class Db:
 
     @staticmethod
     def update_solution(solution_id, url, title, isac, ispublic, summary, code, user_id):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 UPDATE solutions 
-                SET url = ?, title = ?, isac = ?, ispublic = ?, summary = ?, code = ?
-                WHERE id = ? AND user_id = ?
+                SET url = %s, title = %s, isac = %s, ispublic = %s, summary = %s, code = %s
+                WHERE id = %s AND user_id = %s
             ''', (url, title, isac, ispublic, summary, code, solution_id, user_id))
             conn.commit()
             return cursor.rowcount > 0
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -450,49 +460,16 @@ class Db:
 
     @staticmethod
     def delete_solution(solution_id, user_id):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 DELETE FROM solutions 
-                WHERE id = ? AND user_id = ?
+                WHERE id = %s AND user_id = %s
             ''', (solution_id, user_id))
             conn.commit()
             return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            print(e)
-            return False
-        finally:
-            conn.close()
-
-    @staticmethod
-    def add_user(username, email, password):
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        try:
-            hashed_password = Db.hash_password(password)
-            cursor.execute('''
-                INSERT INTO users (username, email, password)
-                VALUES (?, ?, ?)
-            ''', (username, email, hashed_password))
-            
-            cursor.execute('''
-                INSERT INTO roles (username, role)
-                VALUES (?, ?)
-            ''', (username, 'default'))
-            
-            cursor.execute('''
-                INSERT INTO points (username, point, total_point)
-                VALUES (?, ?, ?)
-            ''', (username, 0, 0))
-            
-            conn.commit()
-            print(f"User {username} added successfully")
-            return True
-        except sqlite3.IntegrityError:
-            print("Username or email already exists")
-            return False
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -500,19 +477,22 @@ class Db:
 
     @staticmethod
     def add_points(username, points_to_add):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT OR REPLACE INTO points (username, point, total_point)
-                VALUES (?, 
-                    COALESCE((SELECT point FROM points WHERE username = ?), 0) + ?,
-                    COALESCE((SELECT total_point FROM points WHERE username = ?), 0) + ?
+                INSERT INTO points (username, point, total_point)
+                VALUES (%s, 
+                    COALESCE((SELECT point FROM points WHERE username = %s), 0) + %s,
+                    COALESCE((SELECT total_point FROM points WHERE username = %s), 0) + %s
                 )
+                ON CONFLICT (username) DO UPDATE SET
+                    point = EXCLUDED.point,
+                    total_point = EXCLUDED.total_point
             ''', (username, username, points_to_add, username, points_to_add))
             conn.commit()
             return True
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return False
         finally:
@@ -520,13 +500,13 @@ class Db:
 
     @staticmethod
     def get_user_points(username):
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''SELECT point, total_point FROM points WHERE username = ?''', (username,))
+            cursor.execute('''SELECT point, total_point FROM points WHERE username = %s''', (username,))
             result = cursor.fetchone()
             return result if result else (0, 0)
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return (0, 0)
         finally:
@@ -534,17 +514,17 @@ class Db:
 
     @staticmethod
     def get_all_users_points():
-        conn = sqlite3.connect('database.db')
+        conn = Db.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                SELECT u.username, p.total_point 
+                SELECT u.username, COALESCE(p.total_point, 0)
                 FROM users u 
                 LEFT JOIN points p ON u.username = p.username
-                ORDER BY p.total_point DESC
+                ORDER BY COALESCE(p.total_point, 0) DESC
             ''')
             return cursor.fetchall()
-        except sqlite3.Error as e:
+        except Exception as e:
             print(e)
             return []
         finally:
