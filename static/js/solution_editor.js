@@ -2,85 +2,90 @@ let summaryEditor;
 let codeEditor;
 
 document.addEventListener('DOMContentLoaded', function() {
-    initializeEditors();
+    setTimeout(initializeEditors, 100);
 });
 
 function initializeEditors() {
-    summaryEditor = editormd("summary-container", {
-        placeholder: "Nhập tóm tắt giải pháp (Markdown)...",
-        height: 200,
-        path: "https://cdn.jsdelivr.net/npm/editor.md@1.5.0/lib/",
-        toolbarIcons: function() {
-            return [
-                "bold", "italic", "quote", "|",
-                "list-ul", "list-ol", "hr", "|",
-                "link", "image", "code", "|",
-                "preview", "fullscreen"
-            ]
-        },
-        toolbarIconTexts: {
-            "bold": "Đậm",
-            "italic": "Nghiêng", 
-            "quote": "Trích dẫn",
-            "list-ul": "Danh sách",
-            "list-ol": "Số thứ tự",
-            "hr": "Đường kẻ",
-            "link": "Liên kết",
-            "image": "Hình ảnh",
-            "code": "Code",
-            "preview": "Xem trước",
-            "fullscreen": "Toàn màn hình"
-        }
-    });
+    const summaryContainer = document.getElementById('summary-container');
+    const codeContainer = document.getElementById('code-container');
+    
+    if (!summaryContainer || !codeContainer) {
+        console.error('Không tìm thấy editor containers');
+        return;
+    }
 
-    codeEditor = editormd("code-container", {
-        placeholder: "Nhập code giải pháp của bạn...",
-        height: 400,
-        path: "https://cdn.jsdelivr.net/npm/editor.md@1.5.0/lib/",
-        toolbarIcons: function() {
-            return [
-                "bold", "italic", "quote", "|",
-                "list-ul", "list-ol", "hr", "|", 
-                "link", "code-block", "code", "|",
-                "preview", "fullscreen"
+    try {
+        summaryEditor = new toastui.Editor({
+            el: summaryContainer,
+            height: '500px',
+            initialEditType: 'markdown',
+            previewStyle: 'tab',
+            placeholder: 'Nhập tóm tắt giải pháp (Markdown)...',
+            usageStatistics: false,
+            hideModeSwitch: true,
+            toolbarItems: [
+                ['heading', 'bold', 'italic'],
+                ['hr', 'quote'],
+                ['ul', 'ol'],
+                ['table', 'link'],
+                ['code', 'codeblock']
             ]
-        },
-        toolbarIconTexts: {
-            "bold": "Đậm",
-            "italic": "Nghiêng",
-            "quote": "Trích dẫn", 
-            "list-ul": "Danh sách",
-            "list-ol": "Số thứ tự",
-            "hr": "Đường kẻ",
-            "link": "Liên kết",
-            "code-block": "Code Block",
-            "code": "Inline Code",
-            "preview": "Xem trước",
-            "fullscreen": "Toàn màn hình"
-        }
-    });
+        });
 
-    setTimeout(() => {
-        initializeEditorContent();
-    }, 500);
+        codeEditor = new toastui.Editor({
+            el: codeContainer,
+            height: '500px',
+            initialEditType: 'markdown',
+            previewStyle: 'tab',
+            placeholder: 'Nhập code giải pháp của bạn...',
+            usageStatistics: false,
+            hideModeSwitch: true,
+            toolbarItems: [
+                ['heading', 'bold', 'italic'],
+                ['hr', 'quote'],
+                ['ul', 'ol'],
+                ['table', 'link'],
+                ['code', 'codeblock']
+            ]
+        });
+
+        setTimeout(initializeEditorContent, 200);
+        
+    } catch (error) {
+        console.error('Lỗi khởi tạo editor:', error);
+        alert('Có lỗi khi khởi tạo trình soạn thảo. Vui lòng tải lại trang.');
+    }
 }
 
 function initializeEditorContent() {
-    const urlPath = window.location.pathname;
-    if (urlPath.includes('/edit_solution/')) {
-        const solutionDataElement = document.getElementById('solution-data');
-        if (solutionDataElement) {
-            const summary = solutionDataElement.dataset.summary || '';
-            const code = solutionDataElement.dataset.code || '';
-            
-            if (summaryEditor && summary) {
-                summaryEditor.setMarkdown(summary);
-            }
-            if (codeEditor && code) {
-                codeEditor.setMarkdown(code);
-            }
+    const solutionDataElement = document.getElementById('solution-data');
+    if (!solutionDataElement) return;
+
+    const summary = solutionDataElement.dataset.summary || '';
+    const code = solutionDataElement.dataset.code || '';
+    
+    const decodedSummary = decodeHTML(summary);
+    const decodedCode = decodeHTML(code);
+    
+    try {
+        if (summaryEditor && decodedSummary) {
+            summaryEditor.setMarkdown(decodedSummary);
         }
+        
+        if (codeEditor && decodedCode) {
+            codeEditor.setMarkdown(decodedCode);
+        }
+    } catch (error) {
+        console.error('Lỗi khi set editor content:', error);
     }
+}
+
+
+function decodeHTML(html) {
+    if (!html) return '';
+    const txt = document.createElement('textarea');
+    txt.innerHTML = html;
+    return txt.value;
 }
 
 document.getElementById('solution-form').addEventListener('submit', function(e) {
@@ -90,32 +95,39 @@ document.getElementById('solution-form').addEventListener('submit', function(e) 
         return;
     }
 
-    const codeValue = codeEditor.getMarkdown();
-    const summaryValue = summaryEditor.getMarkdown();
-    
-    if (!codeValue.trim()) {
+    try {
+        const codeValue = codeEditor.getMarkdown();
+        const summaryValue = summaryEditor.getMarkdown();
+        
+        if (!codeValue.trim()) {
+            e.preventDefault();
+            alert('Vui lòng nhập phần giải!');
+            return;
+        }
+        
+        let codeHiddenInput = document.querySelector('input[name="code"]');
+        let summaryHiddenInput = document.querySelector('input[name="summary"]');
+        
+        if (!codeHiddenInput) {
+            codeHiddenInput = document.createElement('input');
+            codeHiddenInput.type = 'hidden';
+            codeHiddenInput.name = 'code';
+            this.appendChild(codeHiddenInput);
+        }
+        
+        if (!summaryHiddenInput) {
+            summaryHiddenInput = document.createElement('input');
+            summaryHiddenInput.type = 'hidden';
+            summaryHiddenInput.name = 'summary';
+            this.appendChild(summaryHiddenInput);
+        }
+        
+        codeHiddenInput.value = codeValue;
+        summaryHiddenInput.value = summaryValue;
+        
+    } catch (error) {
         e.preventDefault();
-        alert('Vui lòng nhập phần giải!');
-        return;
+        console.error('Lỗi khi submit form:', error);
+        alert('Có lỗi xảy ra khi xử lý dữ liệu. Vui lòng thử lại.');
     }
-    
-    let codeHiddenInput = document.querySelector('input[name="code"]');
-    let summaryHiddenInput = document.querySelector('input[name="summary"]');
-    
-    if (!codeHiddenInput) {
-        codeHiddenInput = document.createElement('input');
-        codeHiddenInput.type = 'hidden';
-        codeHiddenInput.name = 'code';
-        this.appendChild(codeHiddenInput);
-    }
-    
-    if (!summaryHiddenInput) {
-        summaryHiddenInput = document.createElement('input');
-        summaryHiddenInput.type = 'hidden';
-        summaryHiddenInput.name = 'summary';
-        this.appendChild(summaryHiddenInput);
-    }
-    
-    codeHiddenInput.value = codeValue;
-    summaryHiddenInput.value = summaryValue;
 });
