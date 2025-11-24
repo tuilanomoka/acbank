@@ -65,16 +65,6 @@ Tạo Solution
                 </div>
             </form>
         </div>
-        
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="mt-6 bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg">
-                    {% for message in messages %}
-                        <p class="flex items-center"><i class="fas fa-exclamation-circle mr-2"></i>{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
     </div>
 </div>
 {% endblock %}

@@ -98,7 +98,6 @@ function renderMarkdownWithLatex(text, container) {
     }
     
     try {
-        // Configure marked options
         marked.setOptions({
             highlight: function(code, lang) {
                 if (lang && hljs.getLanguage(lang)) {
@@ -110,11 +109,9 @@ function renderMarkdownWithLatex(text, container) {
             gfm: true
         });
         
-        // Render markdown
         const html = marked.parse(text);
         container.innerHTML = html;
         
-        // Render LaTeX với KaTeX
         renderMathInElement(container, {
             delimiters: [
                 {left: '$$', right: '$$', display: true},
@@ -126,7 +123,6 @@ function renderMarkdownWithLatex(text, container) {
             output: 'html'
         });
         
-        // Highlight code blocks
         container.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightElement(block);
         });
