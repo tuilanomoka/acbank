@@ -31,7 +31,6 @@ function loadUserPoints() {
         });
 }
 
-// Các hàm còn lại giữ nguyên
 function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.style.display = 'none';
@@ -279,6 +278,29 @@ function showTab(tabName) {
     
     currentTab = tabName;
     loadSolutions();
+}
+
+function logoutAllDevices() {
+    if (confirm('Bạn có chắc muốn đăng xuất khỏi TẤT CẢ thiết bị? Bạn sẽ phải đăng nhập lại trên thiết bị hiện tại.')) {
+        fetch('/api/logout_all_devices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.href = '/login';
+            } else {
+                alert('Thất bại: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error);
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

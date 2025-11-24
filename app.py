@@ -1,3 +1,4 @@
+import datetime
 from flask import Flask, request, session, jsonify, render_template, redirect, url_for, flash
 from functools import wraps
 from models.database import Db
@@ -10,12 +11,18 @@ from email.mime.multipart import MIMEMultipart
 import secrets
 import string
 from config import config
+import hashlib
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 socketio = SocketIO(app)
 
 user_requests = {}
+
+def generate_session_token(username):
+    timestamp = str(datetime.datetime.now().timestamp())
+    raw_token = f"{username}{timestamp}{secrets.token_hex(16)}"
+    return hashlib.sha256(raw_token.encode()).hexdigest()
 
 def login_required(f):
     @wraps(f)
@@ -153,12 +160,38 @@ def login_api():
         return redirect('/login')
     
     if Db.verify_user(username, password):
+        session_token = generate_session_token(username)
+        Db.update_session_token(username, session_token)
+        
         session['user_id'] = username 
         session['logged_in'] = True
+        session['session_token'] = session_token
         return redirect('/home')
     else:
         flash('Sai tên đăng nhập hoặc mật khẩu!')
         return redirect('/login')
+
+@app.route('/api/logout_all_devices', methods=['POST'])
+@login_required
+def logout_all_devices_api():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Vui lòng đăng nhập!'})
+    
+    username = session['user_id']
+    
+    new_token = generate_session_token(username)
+    
+    if Db.update_session_token(username, new_token):
+        session.clear()
+        return jsonify({
+            'success': True, 
+            'message': 'Đã đăng xuất khỏi tất cả thiết bị. Vui lòng đăng nhập lại.'
+        })
+    else:
+        return jsonify({
+            'success': False, 
+            'message': 'Có lỗi xảy ra. Vui lòng thử lại.'
+        })
 
 @app.route('/api/register', methods=['POST'])
 def register_api():
@@ -521,7 +554,7 @@ def api_user_points():
 
 @app.before_request
 def before_request():
-    if request.path.startswith(('/login', '/register', '/forgot_password', '/static', '/api/forgot_password')):
+    if request.path.startswith(('/login', '/register', '/forgot_password', '/static', '/api/forgot_password', '/api/login', '/api/register')):
         return
 
     if session.get('logged_in'):
@@ -530,6 +563,17 @@ def before_request():
             session.clear()
             flash('Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.')
             return redirect('/login')
+        
+        current_token = session.get('session_token')
+        if current_token:
+            try:
+                valid_token = Db.get_session_token(username)
+                if valid_token is not None and current_token != valid_token:
+                    session.clear()
+                    flash('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+                    return redirect('/login')
+            except Exception as e:
+                print(f"Warning: Session token check failed: {e}")
 
 @app.route('/rank')
 @login_required

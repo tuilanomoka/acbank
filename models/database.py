@@ -18,6 +18,7 @@ class Db:
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
+                    session_token TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -58,7 +59,7 @@ class Db:
             conn.commit()
             print("Tables created successfully")
         except Exception as e:
-            print(e)
+            print(f"Error creating tables: {e}")
         finally:
             conn.close()
     
@@ -546,5 +547,38 @@ class Db:
         except Exception as e:
             print(e)
             return []
+        finally:
+            conn.close()
+    @staticmethod
+    def update_session_token(username, session_token):
+        conn = Db.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                UPDATE users 
+                SET session_token = %s
+                WHERE username = %s
+            ''', (session_token, username))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error updating session token: {e}")
+            return False
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_session_token(username):
+        conn = Db.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT session_token FROM users WHERE username = %s
+            ''', (username,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error getting session token: {e}")
+            return None
         finally:
             conn.close()
