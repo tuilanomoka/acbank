@@ -511,36 +511,156 @@ def api_public_solutions():
         'page': page
     })
 
+@app.route('/api/all_users')
+@login_required
+@admin_required
+def api_all_users():
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT username, email, created_at FROM users ORDER BY created_at DESC
+        ''')
+        users = cursor.fetchall()
+        result = [
+            {'username': u[0], 'email': u[1], 'created_at': u[2].strftime('%Y-%m-%d %H:%M')}
+            for u in users
+        ]
+        return jsonify({'users': result})
+    except Exception as e:
+        print(e)
+        return jsonify({'users': []})
+    finally:
+        conn.close()
+
 @app.route('/api/all_solutions')
 @login_required
 @admin_required
 def api_all_solutions():
-    page = int(request.args.get('page', 1))
-    search = request.args.get('search', '')
-    limit = 10
-    offset = (page - 1) * limit
-    
-    solutions = Db.get_all_solutions(offset, limit, search)
-    
-    solution_dicts = []
-    for solution in solutions:
-        solution_dicts.append({
-            'id': solution[0],
-            'url': solution[1],
-            'title': solution[2],
-            'isac': bool(solution[3]),
-            'ispublic': bool(solution[4]),
-            'summary': solution[5],
-            'code': solution[6],
-            'user_id': solution[7],
-            'created_at': solution[8],
-            'username': solution[9]
-        })
-    
-    return jsonify({
-        'solutions': solution_dicts,
-        'page': page
-    })
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT s.id, s.title, s.url, u.username, s.isac, s.ispublic, s.created_at
+            FROM solutions s
+            JOIN users u ON s.user_id = u.id
+            ORDER BY s.created_at DESC
+        ''')
+        sols = cursor.fetchall()
+        result = [
+            {
+                'id': s[0],
+                'title': s[1],
+                'url': s[2],
+                'username': s[3],
+                'isac': bool(s[4]),
+                'ispublic': bool(s[5]),
+                'created_at': s[6].strftime('%Y-%m-%d %H:%M')
+            }
+            for s in sols
+        ]
+        return jsonify({'solutions': result})
+    except Exception as e:
+        print(e)
+        return jsonify({'solutions': []})
+    finally:
+        conn.close()
+
+@app.route('/api/all_points')
+@login_required
+@admin_required
+def api_all_points():
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT u.username, COALESCE(p.point, 0), COALESCE(p.total_point, 0)
+            FROM users u
+            LEFT JOIN points p ON u.username = p.username
+            ORDER BY COALESCE(p.total_point, 0) DESC
+        ''')
+        rows = cursor.fetchall()
+        result = [
+            {'username': r[0], 'point': r[1], 'total_point': r[2]}
+            for r in rows
+        ]
+        return jsonify({'points': result})
+    except Exception as e:
+        print(e)
+        return jsonify({'points': []})
+    finally:
+        conn.close()
+
+@app.route('/api/all_roles')
+@login_required
+@admin_required
+def api_all_roles():
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT u.username, COALESCE(r.role, 'default')
+            FROM users u
+            LEFT JOIN roles r ON u.username = r.username
+            ORDER BY u.username
+        ''')
+        rows = cursor.fetchall()
+        result = [
+            {'username': r[0], 'role': r[1]}
+            for r in rows
+        ]
+        return jsonify({'roles': result})
+    except Exception as e:
+        print(e)
+        return jsonify({'roles': []})
+    finally:
+        conn.close()
+
+@app.route('/api/set_role/<username>', methods=['POST'])
+@login_required
+@admin_required
+def api_set_role(username):
+    new_role = request.json.get('role')
+    if new_role not in ['default', 'admin']:
+        return jsonify({'success': False, 'message': 'Role không hợp lệ'})
+
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO roles (username, role) VALUES (%s, %s)
+            ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role
+        ''', (username, new_role))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(e)
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        conn.close()
+
+@app.route('/api/delete_user/<username>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_user(username):
+    if username == session['user_id']:
+        return jsonify({'success': False, 'message': 'Không thể tự xóa chính mình!'})
+
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM solutions WHERE user_id = (SELECT id FROM users WHERE username = %s)', (username,))
+        cursor.execute('DELETE FROM points WHERE username = %s', (username,))
+        cursor.execute('DELETE FROM roles WHERE username = %s', (username,))
+        cursor.execute('DELETE FROM users WHERE username = %s', (username,))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        print(e)
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        conn.close()
 
 @app.route('/api/user_points')
 @login_required
@@ -635,6 +755,46 @@ def change_password_api():
     else:
         flash('error', 'Đổi mật khẩu thất bại! Vui lòng thử lại.')
         return redirect('/change_password')
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_page():
+    return render_template('admin.html')
+
+@app.route('/api/admin_set_points', methods=['POST'])
+@login_required
+@admin_required
+def api_admin_set_points():
+    data = request.get_json()
+    username = data.get('username')
+    point = data.get('point', 0)
+    total_point = data.get('total_point', 0)
+
+    if point < 0 or total_point < 0:
+        return jsonify({'success': False, 'message': 'Điểm không được âm'})
+
+    if point > total_point:
+        return jsonify({'success': False, 'message': 'Point không được lớn hơn total_point'})
+
+    conn = Db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO points (username, point, total_point)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (username) DO UPDATE SET
+                point = EXCLUDED.point,
+                total_point = EXCLUDED.total_point
+        ''', (username, point, total_point))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        print(f"Error setting points: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     Db.create_accounts_table()

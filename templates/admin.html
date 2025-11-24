@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}
+Trang quản trị
+{% endblock %}
+{% block css %}
+<link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet">
+<style>
+/* Thêm style tùy chỉnh cho bảng quản trị */
+.admin-table th {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+}
+.admin-table tr:hover {
+    background-color: #f9fafb;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+    <div class="container mx-auto px-4 max-w-6xl">
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <a href="/home" class="text-blue-600 hover:text-blue-800 transition-colors duration-300 mr-4">
+                        <i class="fas fa-arrow-left text-lg"></i>
+                    </a>
+                    <h2 class="text-2xl font-bold text-gray-800">Trang quản trị (Admin)</h2>
+                </div>
+                <span class="inline-block bg-red-100 text-red-800 text-sm font-semibold px-3 py-1 rounded-full">
+                    <i class="fas fa-crown mr-1"></i>Admin Mode
+                </span>
+            </div>
+
+            <div class="flex space-x-4 mb-6 overflow-x-auto">
+                <button id="tab-users" onclick="showTab('users')" class="tab-active text-white py-2 px-4 rounded-lg font-semibold transition-all duration-300">
+                    <i class="fas fa-users mr-2"></i>Người dùng
+                </button>
+                <button id="tab-solutions" onclick="showTab('solutions')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                    <i class="fas fa-file-alt mr-2"></i>Solutions
+                </button>
+                <button id="tab-points" onclick="showTab('points')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                    <i class="fas fa-trophy mr-2"></i>Points
+                </button>
+                <button id="tab-roles" onclick="showTab('roles')" class="bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300">
+                    <i class="fas fa-shield-alt mr-2"></i>Roles
+                </button>
+            </div>
+
+            <div id="users" class="tab-content">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Quản lý người dùng</h3>
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full border-collapse border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-2">Username</th>
+                                <th class="px-4 py-2">Email</th>
+                                <th class="px-4 py-2">Created At</th>
+                                <th class="px-4 py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-list">
+                            <tr>
+                                <td colspan="4" class="text-center py-4">Đang tải dữ liệu...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="solutions" class="tab-content hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Quản lý Solutions</h3>
+                <div id="solutions-list" class="space-y-4">
+                </div>
+            </div>
+
+            <div id="points" class="tab-content hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Quản lý Points</h3>
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full border-collapse border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-2">Username</th>
+                                <th class="px-4 py-2">Point hiện tại</th>
+                                <th class="px-4 py-2">Tổng điểm</th>
+                                <th class="px-4 py-2">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="points-list">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="roles" class="tab-content hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Quản lý Roles</h3>
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full border-collapse border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-2">Username</th>
+                                <th class="px-4 py-2">Current Role</th>
+                                <th class="px-4 py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roles-list">
+                            <tr>
+                                <td colspan="3" class="text-center py-4">Đang tải dữ liệu...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <a href="/home" class="bg-blue-100 text-blue-600 py-2 px-6 rounded-lg font-semibold hover:bg-blue-200 transition-all duration-300 inline-flex items-center">
+                    <i class="fas fa-home mr-2"></i>Quay lại trang chủ
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}
