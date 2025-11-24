@@ -9,17 +9,17 @@ function initializeEditors() {
     const codeContainer = document.getElementById('code-container');
     
     if (summaryContainer) {
-        summaryEditor = createEditor(summaryContainer, 'Nhập tóm tắt giải pháp (Markdown + LaTeX)...');
+        summaryEditor = createCodeMirrorEditor(summaryContainer, 'Nhập tóm tắt giải pháp (Markdown + LaTeX)...');
     }
     
     if (codeContainer) {
-        codeEditor = createEditor(codeContainer, 'Nhập code giải pháp của bạn (Markdown + LaTeX)...');
+        codeEditor = createCodeMirrorEditor(codeContainer, 'Nhập code giải pháp của bạn (Markdown + LaTeX)...');
     }
     
     setTimeout(loadExistingContent, 100);
 }
 
-function createEditor(container, placeholder) {
+function createCodeMirrorEditor(container, placeholder) {
     const editor = document.createElement('div');
     editor.className = 'editor-container border rounded-lg bg-white';
     editor.innerHTML = `
@@ -28,8 +28,8 @@ function createEditor(container, placeholder) {
             <button type="button" class="tab-btn px-4 py-2 font-medium text-gray-600 hover:text-gray-800" data-tab="preview">Xem trước</button>
         </div>
         <div class="editor-content">
-            <div class="edit-area active p-4">
-                <textarea class="w-full h-96 p-4 border rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="${placeholder}"></textarea>
+            <div class="edit-area active">
+                <textarea class="hidden" placeholder="${placeholder}"></textarea>
             </div>
             <div class="preview-area hidden p-4 prose max-w-none">
                 <div class="preview-content min-h-96 border rounded-lg p-4 bg-gray-50"></div>
@@ -45,6 +45,35 @@ function createEditor(container, placeholder) {
     const previewArea = editor.querySelector('.preview-area');
     const textarea = editor.querySelector('textarea');
     const previewContent = editor.querySelector('.preview-content');
+    
+    const cmEditor = CodeMirror(editArea, {
+        value: '',
+        mode: 'markdown',
+        theme: 'default',
+        lineNumbers: true,
+        lineWrapping: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: true,
+        electricChars: true,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        extraKeys: {
+            "Tab": function(cm) {
+                if (cm.somethingSelected()) {
+                    cm.indentSelection("add");
+                } else {
+                    cm.replaceSelection("\t", "end", "+input");
+                }
+            },
+            "Shift-Tab": function(cm) {
+                cm.indentSelection("subtract");
+            }
+        },
+        placeholder: placeholder
+    });
+    
+    cmEditor.setSize("100%", "400px");
     
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
@@ -64,30 +93,30 @@ function createEditor(container, placeholder) {
                 previewArea.classList.remove('hidden');
                 previewArea.classList.add('active');
                 
-                renderMarkdownWithLatex(textarea.value, previewContent);
+                renderMarkdownWithLatex(cmEditor.getValue(), previewContent);
             }
         });
     });
     
     let previewTimeout;
-    textarea.addEventListener('input', function() {
+    cmEditor.on('change', function() {
         clearTimeout(previewTimeout);
         previewTimeout = setTimeout(() => {
             if (previewArea.classList.contains('active')) {
-                renderMarkdownWithLatex(this.value, previewContent);
+                renderMarkdownWithLatex(cmEditor.getValue(), previewContent);
             }
         }, 500);
     });
     
     return {
-        getValue: () => textarea.value,
+        getValue: () => cmEditor.getValue(),
         setValue: (value) => {
-            textarea.value = value;
+            cmEditor.setValue(value);
             if (previewArea.classList.contains('active')) {
                 renderMarkdownWithLatex(value, previewContent);
             }
         },
-        focus: () => textarea.focus()
+        focus: () => cmEditor.focus()
     };
 }
 

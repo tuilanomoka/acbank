@@ -1,5 +1,5 @@
 import datetime
-from flask import Flask, request, session, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, session, jsonify, render_template, redirect, flash
 from functools import wraps
 from models.database import Db
 from flask_socketio import SocketIO
