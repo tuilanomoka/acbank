@@ -100,6 +100,25 @@ class Db:
             conn.close()
 
     @staticmethod
+    def update_user_password(username, new_password):
+        conn = Db.get_connection()
+        cursor = conn.cursor()
+        try:
+            hashed_password = Db.hash_password(new_password)
+            cursor.execute('''
+                UPDATE users 
+                SET password = %s
+                WHERE username = %s
+            ''', (hashed_password, username))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(e)
+            return False
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_user_role(username):
         conn = Db.get_connection()
         cursor = conn.cursor()

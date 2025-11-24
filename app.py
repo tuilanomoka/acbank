@@ -4,6 +4,12 @@ from models.database import Db
 from flask_socketio import SocketIO
 import time
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import secrets
+import string
+from config import config
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -14,7 +20,6 @@ user_requests = {}
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-
         if not session.get('logged_in'):
             return redirect('/login')
 
@@ -38,7 +43,6 @@ def redirect_if_logged_in(f):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-            
         if not session.get('logged_in'):
             return redirect('/login')
         
@@ -81,11 +85,38 @@ def check_spam(user_id, action):
     user_requests[user_id][action].append(current_time)
     return False
 
+def generate_random_password(length=12):
+    characters = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(characters) for _ in range(length))
+
+def send_email(to_email, subject, body):
+    if not config.EMAIL_ENABLED:
+        return False
+        
+    try:
+        msg = MIMEMultipart() 
+        msg['From'] = config.EMAIL_FROM
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP(config.EMAIL_SERVER, config.EMAIL_PORT)
+        server.starttls()
+        server.login(config.EMAIL_USERNAME, config.EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Lỗi gửi email: {e}")
+        return False
+
 @app.context_processor
 def utility_processor():
     return dict(
         get_current_user_role=get_current_user_role,
-        is_admin=is_admin
+        is_admin=is_admin,
+        config=config
     )
 
 @app.route('/')
@@ -103,6 +134,14 @@ def login_page():
 @redirect_if_logged_in
 def register_page():
     return render_template('register.html')
+
+@app.route('/forgot_password')
+@redirect_if_logged_in
+def forgot_password_page():
+    if not config.EMAIL_ENABLED:
+        flash('Tính năng khôi phục mật khẩu tạm thời không khả dụng.')
+        return redirect('/login')
+    return render_template('forgot_password.html')
 
 @app.route('/api/login', methods=['POST'])
 def login_api():
@@ -146,6 +185,50 @@ def register_api():
         flash('Đăng ký thất bại! Vui lòng thử lại.')
         return redirect('/register')
 
+@app.route('/api/forgot_password', methods=['POST'])
+def forgot_password_api():
+    if not config.EMAIL_ENABLED:
+        flash('Tính năng khôi phục mật khẩu tạm thời không khả dụng.')
+        return redirect('/login')
+    
+    username = request.form.get('username')
+    email = request.form.get('email')
+    
+    if not username or not email:
+        flash('Vui lòng nhập đầy đủ username và email!')
+        return redirect('/forgot_password')
+    
+    user = Db.get_user_by_username(username)
+    if not user or user[2] != email:
+        flash('success', 'Nếu username và email khớp, mật khẩu mới sẽ được gửi đến email của bạn.')
+        return redirect('/login')
+    
+    new_password = generate_random_password()
+    
+    if Db.update_user_password(username, new_password):
+        subject = "AC Bank - Mật khẩu mới của bạn"
+        body = f"""
+        <html>
+            <body>
+                <h2>AC Bank - Khôi phục mật khẩu</h2>
+                <p>Xin chào <strong>{username}</strong>,</p>
+                <p>Mật khẩu mới của bạn là: <strong>{new_password}</strong></p>
+                <p>Vui lòng đăng nhập và đổi mật khẩu ngay sau khi đăng nhập.</p>
+                <br>
+                <p>Trân trọng,<br>Đội ngũ AC Bank</p>
+            </body>
+        </html>
+        """
+        
+        if send_email(email, subject, body):
+            flash('success', 'Mật khẩu mới đã được gửi đến email của bạn.')
+        else:
+            flash('error', 'Có lỗi xảy ra khi gửi email. Vui lòng thử lại sau.')
+    else:
+        flash('error', 'Có lỗi xảy ra khi đặt lại mật khẩu. Vui lòng thử lại sau.')
+    
+    return redirect('/login')
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -154,7 +237,6 @@ def logout():
 
 @app.route('/home')
 @login_required
-
 def home():
     return render_template('home.html')
 
@@ -193,7 +275,6 @@ def edit_solution_page(solution_id):
 
 @app.route('/view_solution/<int:solution_id>')
 @login_required
-
 def view_solution_page(solution_id):
     solution = Db.get_solution_by_id(solution_id)
     if not solution:
@@ -440,7 +521,7 @@ def api_user_points():
 
 @app.before_request
 def before_request():
-    if request.path.startswith(('/login', '/register', '/static')):
+    if request.path.startswith(('/login', '/register', '/forgot_password', '/static', '/api/forgot_password')):
         return
 
     if session.get('logged_in'):
@@ -470,6 +551,46 @@ def api_rankings():
     return jsonify({
         'rankings': rankings
     })
+
+@app.route('/change_password')
+@login_required
+def change_password_page():
+    return render_template('change_password.html')
+
+@app.route('/api/change_password', methods=['POST'])
+@login_required
+def change_password_api():
+    if 'user_id' not in session:
+        flash('Vui lòng đăng nhập!')
+        return redirect('/login')
+    
+    username = session['user_id']
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+    
+    if not current_password or not new_password or not confirm_password:
+        flash('error', 'Vui lòng nhập đầy đủ thông tin!')
+        return redirect('/change_password')
+    
+    if len(new_password) < 6:
+        flash('error', 'Mật khẩu mới phải có ít nhất 6 ký tự!')
+        return redirect('/change_password')
+    
+    if new_password != confirm_password:
+        flash('error', 'Mật khẩu xác nhận không khớp!')
+        return redirect('/change_password')
+    
+    if not Db.verify_user(username, current_password):
+        flash('error', 'Mật khẩu hiện tại không đúng!')
+        return redirect('/change_password')
+    
+    if Db.update_user_password(username, new_password):
+        flash('success', 'Đổi mật khẩu thành công!')
+        return redirect('/home')
+    else:
+        flash('error', 'Đổi mật khẩu thất bại! Vui lòng thử lại.')
+        return redirect('/change_password')
 
 if __name__ == '__main__':
     Db.create_accounts_table()
