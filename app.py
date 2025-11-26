@@ -1,8 +1,7 @@
 import datetime
-from flask import Flask, request, session, jsonify, render_template, redirect, flash
+from flask import Flask, request, session, jsonify, render_template, redirect, flash, Response
 from functools import wraps
 from models.database import Db
-from flask_socketio import SocketIO
 import time
 import os
 import smtplib
@@ -12,12 +11,52 @@ import secrets
 import string
 from config import config
 import hashlib
+import json
+import threading
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
-socketio = SocketIO(app)
+
+
+sse_clients = []
+
+def sse_event(data, event_type=None):
+    message = f"data: {json.dumps(data)}\n\n"
+    if event_type:
+        message = f"event: {event_type}\n{message}"
+    
+    disconnected_clients = []
+    for i, client in enumerate(sse_clients):
+        try:
+            client_queue = client.get('queue')
+            if client_queue:
+                client_queue.put(message)
+        except:
+            disconnected_clients.append(i)
+    
+    for i in reversed(disconnected_clients):
+        sse_clients.pop(i)
+
+@app.route('/sse')
+def sse_stream():
+    def event_stream():
+        import queue
+        client_queue = queue.Queue()
+        sse_clients.append({'queue': client_queue})
+        
+        try:
+            yield "data: {\"message\": \"connected\"}\n\n"
+            
+            while True:
+                message = client_queue.get()
+                yield message
+        except GeneratorExit:
+            sse_clients.remove({'queue': client_queue})
+    
+    return Response(event_stream(), mimetype="text/event-stream")
 
 user_requests = {}
+user_requests_lock = threading.Lock()
 
 def generate_session_token(username):
     timestamp = str(datetime.datetime.now().timestamp())
@@ -78,19 +117,21 @@ def is_admin():
 
 def check_spam(user_id, action):
     current_time = time.time()
-    if user_id not in user_requests:
-        user_requests[user_id] = {}
     
-    if action not in user_requests[user_id]:
-        user_requests[user_id][action] = []
-    
-    user_requests[user_id][action] = [t for t in user_requests[user_id][action] if current_time - t < 60]
-    
-    if len(user_requests[user_id][action]) >= 10:
-        return True
-    
-    user_requests[user_id][action].append(current_time)
-    return False
+    with user_requests_lock:
+        if user_id not in user_requests:
+            user_requests[user_id] = {}
+        
+        if action not in user_requests[user_id]:
+            user_requests[user_id][action] = []
+        
+        user_requests[user_id][action] = [t for t in user_requests[user_id][action] if current_time - t < 60]
+        
+        if len(user_requests[user_id][action]) >= 10:
+            return True
+        
+        user_requests[user_id][action].append(current_time)
+        return False
 
 def generate_random_password(length=12):
     characters = string.ascii_letters + string.digits + "!@#$%^&*"
@@ -363,7 +404,7 @@ def create_solution_api():
     
     if Db.add_solution(url, title, isac, ispublic, summary, code, user_id_db):
         Db.add_points(session['user_id'], 10)
-        socketio.emit('new_solution', {'message': 'New solution added'})
+        sse_event({'message': 'New solution added'}, 'new_solution')
         flash('Tạo solution thành công! +10 điểm')
         return redirect('/home')
     else:
@@ -410,7 +451,7 @@ def update_solution_api(solution_id):
         success = Db.update_solution(solution_id, url, title, isac, ispublic, summary, code, user_id_db)
     
     if success:
-        socketio.emit('update_solution', {'message': 'Solution updated'})
+        sse_event({'message': 'Solution updated'}, 'update_solution')
         flash('Cập nhật solution thành công!')
         return redirect('/home')
     else:
@@ -445,7 +486,7 @@ def delete_solution_api(solution_id):
         success = Db.delete_solution(solution_id, user_id_db)
     
     if success:
-        socketio.emit('delete_solution', {'message': 'Solution deleted'})
+        sse_event({'message': 'Solution deleted'}, 'delete_solution')
         return jsonify({'success': True, 'message': 'Xoá solution thành công!'})
     else:
         return jsonify({'success': False, 'message': 'Xoá solution thất bại!'})
@@ -515,13 +556,8 @@ def api_public_solutions():
 @login_required
 @admin_required
 def api_all_users():
-    conn = Db.get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute('''
-            SELECT username, email, created_at FROM users ORDER BY created_at DESC
-        ''')
-        users = cursor.fetchall()
+        users = Db.get_all_users()
         result = [
             {'username': u[0], 'email': u[1], 'created_at': u[2].strftime('%Y-%m-%d %H:%M')}
             for u in users
@@ -530,23 +566,13 @@ def api_all_users():
     except Exception as e:
         print(e)
         return jsonify({'users': []})
-    finally:
-        conn.close()
 
 @app.route('/api/all_solutions')
 @login_required
 @admin_required
 def api_all_solutions():
-    conn = Db.get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute('''
-            SELECT s.id, s.title, s.url, u.username, s.isac, s.ispublic, s.created_at
-            FROM solutions s
-            JOIN users u ON s.user_id = u.id
-            ORDER BY s.created_at DESC
-        ''')
-        sols = cursor.fetchall()
+        sols = Db.get_all_solutions_admin()
         result = [
             {
                 'id': s[0],
@@ -563,23 +589,13 @@ def api_all_solutions():
     except Exception as e:
         print(e)
         return jsonify({'solutions': []})
-    finally:
-        conn.close()
 
 @app.route('/api/all_points')
 @login_required
 @admin_required
 def api_all_points():
-    conn = Db.get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute('''
-            SELECT u.username, COALESCE(p.point, 0), COALESCE(p.total_point, 0)
-            FROM users u
-            LEFT JOIN points p ON u.username = p.username
-            ORDER BY COALESCE(p.total_point, 0) DESC
-        ''')
-        rows = cursor.fetchall()
+        rows = Db.get_all_points_admin()
         result = [
             {'username': r[0], 'point': r[1], 'total_point': r[2]}
             for r in rows
@@ -588,23 +604,13 @@ def api_all_points():
     except Exception as e:
         print(e)
         return jsonify({'points': []})
-    finally:
-        conn.close()
 
 @app.route('/api/all_roles')
 @login_required
 @admin_required
 def api_all_roles():
-    conn = Db.get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute('''
-            SELECT u.username, COALESCE(r.role, 'default')
-            FROM users u
-            LEFT JOIN roles r ON u.username = r.username
-            ORDER BY u.username
-        ''')
-        rows = cursor.fetchall()
+        rows = Db.get_all_roles_admin()
         result = [
             {'username': r[0], 'role': r[1]}
             for r in rows
@@ -613,8 +619,6 @@ def api_all_roles():
     except Exception as e:
         print(e)
         return jsonify({'roles': []})
-    finally:
-        conn.close()
 
 @app.route('/api/set_role/<username>', methods=['POST'])
 @login_required
@@ -671,29 +675,6 @@ def api_user_points():
         'current_point': current_point,
         'total_point': total_point
     })
-
-@app.before_request
-def before_request():
-    if request.path.startswith(('/login', '/register', '/forgot_password', '/static', '/api/forgot_password', '/api/login', '/api/register')):
-        return
-
-    if session.get('logged_in'):
-        username = session.get('user_id')
-        if username and not Db.username_exists(username):
-            session.clear()
-            flash('Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.')
-            return redirect('/login')
-        
-        current_token = session.get('session_token')
-        if current_token:
-            try:
-                valid_token = Db.get_session_token(username)
-                if valid_token is not None and current_token != valid_token:
-                    session.clear()
-                    flash('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-                    return redirect('/login')
-            except Exception as e:
-                print(f"Warning: Session token check failed: {e}")
 
 @app.route('/rank')
 @login_required
@@ -796,6 +777,29 @@ def api_admin_set_points():
     finally:
         conn.close()
 
+@app.before_request
+def before_request():
+    if request.path.startswith(('/login', '/register', '/forgot_password', '/static', '/api/forgot_password', '/api/login', '/api/register', '/sse')):
+        return
+
+    if session.get('logged_in'):
+        username = session.get('user_id')
+        if username and not Db.username_exists(username):
+            session.clear()
+            flash('Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.')
+            return redirect('/login')
+        
+        current_token = session.get('session_token')
+        if current_token:
+            try:
+                valid_token = Db.get_session_token(username)
+                if valid_token is not None and current_token != valid_token:
+                    session.clear()
+                    flash('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+                    return redirect('/login')
+            except Exception as e:
+                print(f"Warning: Session token check failed: {e}")
+
 if __name__ == '__main__':
     Db.create_accounts_table()
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)

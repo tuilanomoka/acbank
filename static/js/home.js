@@ -4,20 +4,44 @@ let publicCurrentPage = 1;
 let allCurrentPage = 1;
 let currentSearch = '';
 
-const socket = io();
+let eventSource = null;
 
-socket.on('new_solution', function(data) {
-    loadSolutions();
-    loadUserPoints();
-});
-
-socket.on('update_solution', function(data) {
-    loadSolutions();
-});
-
-socket.on('delete_solution', function(data) {
-    loadSolutions();
-});
+function connectSSE() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    eventSource = new EventSource('/sse');
+    
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        console.log('SSE message:', data);
+    };
+    
+    eventSource.addEventListener('new_solution', function(event) {
+        const data = JSON.parse(event.data);
+        console.log('New solution event:', data);
+        loadSolutions();
+        loadUserPoints();
+    });
+    
+    eventSource.addEventListener('update_solution', function(event) {
+        const data = JSON.parse(event.data);
+        console.log('Update solution event:', data);
+        loadSolutions();
+    });
+    
+    eventSource.addEventListener('delete_solution', function(event) {
+        const data = JSON.parse(event.data);
+        console.log('Delete solution event:', data);
+        loadSolutions();
+    });
+    
+    eventSource.onerror = function(event) {
+        console.error('SSE error:', event);
+        setTimeout(connectSSE, 5000);
+    };
+}
 
 function loadUserPoints() {
     fetch('/api/user_points')
@@ -246,7 +270,6 @@ function deleteSolution(solutionId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                socket.emit('delete_solution', {message: 'Solution deleted'});
                 loadSolutions();
                 loadUserPoints();
             } else {
@@ -304,6 +327,13 @@ function logoutAllDevices() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    connectSSE();
     loadSolutions();
     loadUserPoints();
+});
+
+window.addEventListener('beforeunload', function() {
+    if (eventSource) {
+        eventSource.close();
+    }
 });

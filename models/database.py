@@ -1,17 +1,94 @@
 import psycopg2
 import hashlib
 from config import config
+import threading
+import queue
+import time
 
 class Db:
+    _connection_pool = None
+    _pool_lock = threading.Lock()
+    _max_connections = 20
+    _pool_timeout = 30
+
+    @classmethod
+    def _initialize_pool(cls):
+        if cls._connection_pool is None:
+            with cls._pool_lock:
+                if cls._connection_pool is None:
+                    try:
+                        cls._connection_pool = queue.Queue(maxsize=cls._max_connections)
+                        
+                        for _ in range(5):
+                            conn = psycopg2.connect(config.DATABASE_URL)
+                            cls._connection_pool.put(conn)
+                        
+                        print("Database connection pool initialized with 5 connections")
+                    except Exception as e:
+                        print(f"Error initializing connection pool: {e}")
+                        cls._connection_pool = None
+
     @staticmethod
     def get_connection():
-        return psycopg2.connect(config.DATABASE_URL)
+        if Db._connection_pool is None:
+            Db._initialize_pool()
+        
+        if Db._connection_pool is None:
+            return psycopg2.connect(config.DATABASE_URL)
+        
+        try:
+            conn = Db._connection_pool.get(timeout=Db._pool_timeout)
+            
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute('SELECT 1')
+                return conn
+            except:
+                conn.close()
+                new_conn = psycopg2.connect(config.DATABASE_URL)
+                return new_conn
+                
+        except queue.Empty:
+            print("Connection pool empty, creating new connection")
+            return psycopg2.connect(config.DATABASE_URL)
+        except Exception as e:
+            print(f"Error getting connection from pool: {e}")
+            return psycopg2.connect(config.DATABASE_URL)
+
+    @staticmethod
+    def return_connection(conn):
+        if Db._connection_pool and conn:
+            try:
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute('SELECT 1')
+                    Db._connection_pool.put(conn, timeout=5)
+                except:
+                    conn.close()
+            except queue.Full:
+                conn.close()
+            except Exception as e:
+                print(f"Error returning connection to pool: {e}")
+                conn.close()
+
+    @staticmethod
+    def close_all_connections():
+        if Db._connection_pool:
+            while not Db._connection_pool.empty():
+                try:
+                    conn = Db._connection_pool.get_nowait()
+                    conn.close()
+                except queue.Empty:
+                    break
+            print("All database connections closed")
 
     @staticmethod
     def create_accounts_table():
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
@@ -41,7 +118,7 @@ class Db:
                     FOREIGN KEY (username) REFERENCES users (username)
                 )
             ''')
-
+            
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS solutions (
                     id SERIAL PRIMARY KEY,
@@ -60,8 +137,11 @@ class Db:
             print("Tables created successfully")
         except Exception as e:
             print(f"Error creating tables: {e}")
+            if conn:
+                conn.rollback()
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
     
     @staticmethod
     def hash_password(password):
@@ -69,9 +149,11 @@ class Db:
     
     @staticmethod
     def add_user(username, email, password):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             hashed_password = Db.hash_password(password)
             cursor.execute('''
                 INSERT INTO users (username, email, password)
@@ -93,18 +175,25 @@ class Db:
             return True
         except psycopg2.IntegrityError:
             print("Username or email already exists")
+            if conn:
+                conn.rollback()
             return False
         except Exception as e:
-            print(e)
+            print(f"Error adding user: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def update_user_password(username, new_password):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             hashed_password = Db.hash_password(new_password)
             cursor.execute('''
                 UPDATE users 
@@ -114,30 +203,38 @@ class Db:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            print(e)
+            print(f"Error updating password: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_user_role(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT role FROM roles WHERE username = %s''', (username,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT role FROM roles WHERE username = %s', (username,))
             result = cursor.fetchone()
             return result[0] if result else 'default'
         except Exception as e:
-            print(e)
+            print(f"Error getting user role: {e}")
             return 'default'
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def set_user_role(username, role):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 INSERT INTO roles (username, role)
                 VALUES (%s, %s)
@@ -146,113 +243,108 @@ class Db:
             conn.commit()
             return True
         except Exception as e:
-            print(e)
+            print(f"Error setting user role: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_all_users():
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
-                SELECT u.username, u.email, r.role, u.created_at 
-                FROM users u 
-                LEFT JOIN roles r ON u.username = r.username
+                SELECT username, email, created_at FROM users ORDER BY created_at DESC
             ''')
-            return cursor.fetchall()
+            users = cursor.fetchall()
+            return users
         except Exception as e:
-            print(e)
+            print(f"Error getting all users: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
-    def get_all_solutions(offset=0, limit=10, search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+    def get_all_solutions_admin():
+        conn = None
         try:
-            query = '''
-                SELECT s.*, u.username 
-                FROM solutions s 
-                JOIN users u ON s.user_id = u.id 
-            '''
-            params = []
+            conn = Db.get_connection()
+            cursor = conn.cursor()
             
-            if search:
-                query += ' WHERE (s.url LIKE %s OR s.title LIKE %s)'
-                params.extend([f'%{search}%', f'%{search}%'])
-            
-            query += ' ORDER BY s.created_at DESC LIMIT %s OFFSET %s'
-            params.extend([limit, offset])
-            
-            cursor.execute(query, params)
-            return cursor.fetchall()
-        except Exception as e:
-            print(e)
-            return []
-        finally:
-            conn.close()
-
-    @staticmethod
-    def count_all_solutions(search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
-        try:
-            query = 'SELECT COUNT(*) FROM solutions'
-            params = []
-            
-            if search:
-                query += ' WHERE (url LIKE %s OR title LIKE %s)'
-                params.extend([f'%{search}%', f'%{search}%'])
-            
-            cursor.execute(query, params)
-            return cursor.fetchone()[0]
-        except Exception as e:
-            print(e)
-            return 0
-        finally:
-            conn.close()
-
-    @staticmethod
-    def admin_update_solution(solution_id, url, title, isac, ispublic, summary, code):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
-        try:
             cursor.execute('''
-                UPDATE solutions 
-                SET url = %s, title = %s, isac = %s, ispublic = %s, summary = %s, code = %s
-                WHERE id = %s
-            ''', (url, title, isac, ispublic, summary, code, solution_id))
-            conn.commit()
-            return cursor.rowcount > 0
+                SELECT s.id, s.title, s.url, u.username, s.isac, s.ispublic, s.created_at
+                FROM solutions s
+                JOIN users u ON s.user_id = u.id
+                ORDER BY s.created_at DESC
+            ''')
+            sols = cursor.fetchall()
+            return sols
         except Exception as e:
-            print(e)
-            return False
+            print(f"Error getting all solutions: {e}")
+            return []
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
-    def admin_delete_solution(solution_id):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+    def get_all_points_admin():
+        conn = None
         try:
-            cursor.execute('DELETE FROM solutions WHERE id = %s', (solution_id,))
-            conn.commit()
-            return cursor.rowcount > 0
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT u.username, COALESCE(p.point, 0), COALESCE(p.total_point, 0)
+                FROM users u
+                LEFT JOIN points p ON u.username = p.username
+                ORDER BY COALESCE(p.total_point, 0) DESC
+            ''')
+            rows = cursor.fetchall()
+            return rows
         except Exception as e:
-            print(e)
-            return False
+            print(f"Error getting all points: {e}")
+            return []
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
+
+    @staticmethod
+    def get_all_roles_admin():
+        conn = None
+        try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT u.username, COALESCE(r.role, 'default')
+                FROM users u
+                LEFT JOIN roles r ON u.username = r.username
+                ORDER BY u.username
+            ''')
+            rows = cursor.fetchall()
+            return rows
+        except Exception as e:
+            print(f"Error getting all roles: {e}")
+            return []
+        finally:
+            if conn:
+                Db.return_connection(conn)
+
 
     @staticmethod
     def verify_user(username, plain_password):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT password FROM users WHERE username = %s''', (username,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT password FROM users WHERE username = %s', (username,))
             result = cursor.fetchone()
             if result:
                 stored_hash = result[0]
@@ -267,15 +359,19 @@ class Db:
                 print(f"User {username} not found")
                 return False
         except Exception as e:
-            print(e)
+            print(f"Error verifying user: {e}")
+            return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
             
     @staticmethod
     def get_user_by_username(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 SELECT id, username, email, created_at 
                 FROM users WHERE username = %s
@@ -283,42 +379,51 @@ class Db:
             user = cursor.fetchone()
             return user
         except Exception as e:
-            print(e)
+            print(f"Error getting user by username: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def username_exists(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT id FROM users WHERE username = %s''', (username,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT id FROM users WHERE username = %s', (username,))
             return cursor.fetchone() is not None
         except Exception as e:
-            print(e)
+            print(f"Error checking username exists: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def email_exists(email):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT id FROM users WHERE email = %s''', (email,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT id FROM users WHERE email = %s', (email,))
             return cursor.fetchone() is not None
         except Exception as e:
-            print(e)
+            print(f"Error checking email exists: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def add_solution(url, title, isac, ispublic, summary, code, user_id):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 INSERT INTO solutions (url, title, isac, ispublic, summary, code, user_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -327,30 +432,38 @@ class Db:
             print(f"Solution added successfully by user {user_id}")
             return True
         except Exception as e:
-            print(e)
+            print(f"Error adding solution: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_user_id_by_username(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT id FROM users WHERE username = %s''', (username,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT id FROM users WHERE username = %s', (username,))
             result = cursor.fetchone()
             return result[0] if result else None
         except Exception as e:
-            print(e)
+            print(f"Error getting user ID: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_my_solutions(user_id, offset=0, limit=10, search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             query = '''
                 SELECT s.*, u.username 
                 FROM solutions s 
@@ -369,16 +482,19 @@ class Db:
             cursor.execute(query, params)
             return cursor.fetchall()
         except Exception as e:
-            print(e)
+            print(f"Error getting my solutions: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_public_solutions(offset=0, limit=10, search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             query = '''
                 SELECT s.*, u.username 
                 FROM solutions s 
@@ -397,56 +513,19 @@ class Db:
             cursor.execute(query, params)
             return cursor.fetchall()
         except Exception as e:
-            print(e)
+            print(f"Error getting public solutions: {e}")
             return []
         finally:
-            conn.close()
-
-    @staticmethod
-    def count_my_solutions(user_id, search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
-        try:
-            query = 'SELECT COUNT(*) FROM solutions WHERE user_id = %s'
-            params = [user_id]
-            
-            if search:
-                query += ' AND (url LIKE %s OR title LIKE %s)'
-                params.extend([f'%{search}%', f'%{search}%'])
-            
-            cursor.execute(query, params)
-            return cursor.fetchone()[0]
-        except Exception as e:
-            print(e)
-            return 0
-        finally:
-            conn.close()
-
-    @staticmethod
-    def count_public_solutions(search=None):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
-        try:
-            query = 'SELECT COUNT(*) FROM solutions WHERE ispublic = TRUE'
-            params = []
-            
-            if search:
-                query += ' AND (url LIKE %s OR title LIKE %s)'
-                params.extend([f'%{search}%', f'%{search}%'])
-            
-            cursor.execute(query, params)
-            return cursor.fetchone()[0]
-        except Exception as e:
-            print(e)
-            return 0
-        finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_solution_by_id(solution_id):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 SELECT s.*, u.username 
                 FROM solutions s 
@@ -455,16 +534,19 @@ class Db:
             ''', (solution_id,))
             return cursor.fetchone()
         except Exception as e:
-            print(e)
+            print(f"Error getting solution by ID: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def update_solution(solution_id, url, title, isac, ispublic, summary, code, user_id):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 UPDATE solutions 
                 SET url = %s, title = %s, isac = %s, ispublic = %s, summary = %s, code = %s
@@ -473,16 +555,44 @@ class Db:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            print(e)
+            print(f"Error updating solution: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
+
+    @staticmethod
+    def admin_update_solution(solution_id, url, title, isac, ispublic, summary, code):
+        conn = None
+        try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE solutions 
+                SET url = %s, title = %s, isac = %s, ispublic = %s, summary = %s, code = %s
+                WHERE id = %s
+            ''', (url, title, isac, ispublic, summary, code, solution_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error admin updating solution: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def delete_solution(solution_id, user_id):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 DELETE FROM solutions 
                 WHERE id = %s AND user_id = %s
@@ -490,16 +600,40 @@ class Db:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            print(e)
+            print(f"Error deleting solution: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
+
+    @staticmethod
+    def admin_delete_solution(solution_id):
+        conn = None
+        try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM solutions WHERE id = %s', (solution_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error admin deleting solution: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def add_points(username, points_to_add):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 INSERT INTO points (username, point, total_point)
                 VALUES (%s, 
@@ -513,30 +647,38 @@ class Db:
             conn.commit()
             return True
         except Exception as e:
-            print(e)
+            print(f"Error adding points: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_user_points(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
-            cursor.execute('''SELECT point, total_point FROM points WHERE username = %s''', (username,))
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT point, total_point FROM points WHERE username = %s', (username,))
             result = cursor.fetchone()
             return result if result else (0, 0)
         except Exception as e:
-            print(e)
+            print(f"Error getting user points: {e}")
             return (0, 0)
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_all_users_points():
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 SELECT u.username, COALESCE(p.total_point, 0)
                 FROM users u 
@@ -545,15 +687,19 @@ class Db:
             ''')
             return cursor.fetchall()
         except Exception as e:
-            print(e)
+            print(f"Error getting all users points: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
+
     @staticmethod
     def update_session_token(username, session_token):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 UPDATE users 
                 SET session_token = %s
@@ -563,15 +709,20 @@ class Db:
             return cursor.rowcount > 0
         except Exception as e:
             print(f"Error updating session token: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)
 
     @staticmethod
     def get_session_token(username):
-        conn = Db.get_connection()
-        cursor = conn.cursor()
+        conn = None
         try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
             cursor.execute('''
                 SELECT session_token FROM users WHERE username = %s
             ''', (username,))
@@ -581,4 +732,5 @@ class Db:
             print(f"Error getting session token: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                Db.return_connection(conn)

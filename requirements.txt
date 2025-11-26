@@ -1,7 +1,6 @@
 Flask
-Flask-SocketIO
-python-socketio
-redis
-celery
-Flask-Limiter
+flask-sockets
+gevent
+gevent-websocket
 psycopg2-binary
+psycopg2
