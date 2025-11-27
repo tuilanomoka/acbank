@@ -15,7 +15,6 @@ __pycache__/
 *.pyd
 *.pyo
 config.py
-health_check.py
 
 # Database files
 *.db
@@ -58,7 +57,6 @@ temp/
 # Production files
 acbank.sock
 acbank_uwsgi.ini
-static/  # Nếu có build process cho static files
 
-# Configuration files (giữ config.py.example nhưng ignore config.py thực tế)
+# Configuration files
 config.py
