@@ -14,6 +14,9 @@ function loadRankings() {
                 <div class="text-center py-8">
                     <i class="fas fa-exclamation-triangle text-4xl text-gray-300 mb-4"></i>
                     <p class="text-gray-500">Lỗi khi tải bảng xếp hạng</p>
+                    <button onclick="loadRankings()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-redo mr-2"></i>Thử lại
+                    </button>
                 </div>
             `;
         });
@@ -36,6 +39,7 @@ function displayRankings(rankings) {
         const rank = index + 1;
         let rankClass = '';
         let medalHtml = '';
+        let currentUserBadge = '';
         
         if (rank === 1) {
             rankClass = 'rank-1';
@@ -50,13 +54,19 @@ function displayRankings(rankings) {
             medalHtml = `<div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-gray-600 mr-3">${rank}</div>`;
         }
 
+        if (user.is_current_user) {
+            rankClass += ' current-user';
+            currentUserBadge = `<span class="badge-current">Bạn</span>`;
+        }
+
         return `
-            <div class="bg-white border border-gray-200 rounded-xl p-6 card-hover shadow-sm ${rankClass}">
+            <div class="bg-white border border-gray-200 rounded-xl p-6 card-hover shadow-sm transition-all duration-300 ${rankClass}">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         ${medalHtml}
-                        <div>
+                        <div class="flex items-center">
                             <h4 class="text-lg font-semibold text-gray-800">${user.username}</h4>
+                            ${currentUserBadge}
                         </div>
                     </div>
                     <div class="text-right">

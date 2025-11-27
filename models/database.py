@@ -673,27 +673,6 @@ class Db:
                 Db.return_connection(conn)
 
     @staticmethod
-    def get_all_users_points():
-        conn = None
-        try:
-            conn = Db.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                SELECT u.username, COALESCE(p.total_point, 0)
-                FROM users u 
-                LEFT JOIN points p ON u.username = p.username
-                ORDER BY COALESCE(p.total_point, 0) DESC
-            ''')
-            return cursor.fetchall()
-        except Exception as e:
-            print(f"Error getting all users points: {e}")
-            return []
-        finally:
-            if conn:
-                Db.return_connection(conn)
-
-    @staticmethod
     def update_session_token(username, session_token):
         conn = None
         try:
@@ -731,6 +710,47 @@ class Db:
         except Exception as e:
             print(f"Error getting session token: {e}")
             return None
+        finally:
+            if conn:
+                Db.return_connection(conn)
+                
+    @staticmethod
+    def get_top_rankings_optimized(current_username, limit=5):
+        conn = None
+        try:
+            conn = Db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                WITH top_users AS (
+                    SELECT u.username, COALESCE(p.total_point, 0) as total_point
+                    FROM users u 
+                    LEFT JOIN points p ON u.username = p.username
+                    ORDER BY COALESCE(p.total_point, 0) DESC
+                    LIMIT %s
+                ),
+                current_user_data AS (
+                    SELECT u.username, COALESCE(p.total_point, 0) as total_point
+                    FROM users u 
+                    LEFT JOIN points p ON u.username = p.username
+                    WHERE u.username = %s
+                ),
+                combined AS (
+                    SELECT * FROM top_users
+                    UNION
+                    SELECT * FROM current_user_data
+                )
+                SELECT username, total_point 
+                FROM combined 
+                ORDER BY total_point DESC
+                LIMIT %s
+            ''', (limit, current_username, limit + 1))
+            
+            return cursor.fetchall()
+            
+        except Exception as e:
+            print(f"Error getting optimized rankings: {e}")
+            return []
         finally:
             if conn:
                 Db.return_connection(conn)

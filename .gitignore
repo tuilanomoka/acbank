@@ -44,9 +44,20 @@ Thumbs.db
 # Logs
 *.log
 logs/
+supervisor.log
+supervisor_error.log
+uwsgi.log
 
 # Temporary files
 *.tmp
 *.temp
 tmp/
 temp/
+
+# Production files
+acbank.sock
+acbank_uwsgi.ini
+static/  # Nếu có build process cho static files
+
+# Configuration files (giữ config.py.example nhưng ignore config.py thực tế)
+config.py

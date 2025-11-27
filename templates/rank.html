@@ -3,38 +3,7 @@
 Bảng xếp hạng
 {% endblock %}
 {% block css %}
-<link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet">
-<style>
-.rank-1 {
-    background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%);
-}
-.rank-2 {
-    background: linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%);
-}
-.rank-3 {
-    background: linear-gradient(135deg, #CD7F32 0%, #E8C8A9 100%);
-}
-.medal {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    color: white;
-    margin-right: 12px;
-}
-.medal-gold {
-    background: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
-}
-.medal-silver {
-    background: linear-gradient(135deg, #C0C0C0 0%, #808080 100%);
-}
-.medal-bronze {
-    background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
-}
-</style>
+<link href="{{ url_for('static', filename='css/rank.css') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
@@ -52,6 +21,7 @@ Bảng xếp hạng
                     <i class="fas fa-trophy text-yellow-500 text-xl mr-3"></i>
                     <div>
                         <p class="text-sm text-gray-600">Xếp hạng dựa trên tổng điểm tích lũy</p>
+                        <p class="text-xs text-gray-500 mt-1">Top 5 người có điểm cao nhất + vị trí của bạn</p>
                     </div>
                 </div>
             </div>

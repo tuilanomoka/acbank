@@ -1,0 +1,41 @@
+.rank-1 {
+    background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%);
+}
+.rank-2 {
+    background: linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%);
+}
+.rank-3 {
+    background: linear-gradient(135deg, #CD7F32 0%, #E8C8A9 100%);
+}
+.current-user {
+    background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+    border: 2px solid #2196F3;
+}
+.medal {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    margin-right: 12px;
+}
+.medal-gold {
+    background: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
+}
+.medal-silver {
+    background: linear-gradient(135deg, #C0C0C0 0%, #808080 100%);
+}
+.medal-bronze {
+    background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
+}
+.badge-current {
+    background: #2196F3;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin-left: 8px;
+}
