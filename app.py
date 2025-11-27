@@ -348,11 +348,19 @@ def edit_solution_page(solution_id):
     return render_template('edit_solution.html', solution=solution_dict, solution_id=solution_id)
 
 @app.route('/view_solution/<int:solution_id>')
-@login_required
 def view_solution_page(solution_id):
     solution = Db.get_solution_by_id(solution_id)
     if not solution:
         flash('Solution không tồn tại!')
+        return redirect('/home')
+    
+    is_public = bool(solution[4])
+    
+    current_username = session.get('user_id')
+    solution_username = solution[9]
+    
+    if not is_public and current_username != solution_username:
+        flash('Bạn không có quyền xem solution này!')
         return redirect('/home')
     
     solution_dict = {
