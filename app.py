@@ -810,10 +810,6 @@ def before_request():
             except Exception as e:
                 print(f"Warning: Session token check failed: {e}")
 
-@app.before_first_request
-def create_tables():
-    Db.create_accounts_table()
-
 if __name__ == '__main__':
     Db.create_accounts_table()
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
