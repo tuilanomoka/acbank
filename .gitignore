@@ -15,6 +15,7 @@ __pycache__/
 *.pyd
 *.pyo
 config.py
+health_check.py
 
 # Database files
 *.db
